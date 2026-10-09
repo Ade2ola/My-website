@@ -104,6 +104,8 @@ async function getFullSiteBundle(req, res, next) {
 
     const formattedBooks = books.map(b => ({
       id: b.slug,
+      dbId: b.id,
+      slug: b.slug,
       title: b.title,
       genre: b.genre,
       tagline: b.tagline,
