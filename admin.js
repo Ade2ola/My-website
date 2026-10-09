@@ -1385,12 +1385,12 @@ function renderAdminDeskTab() {
   const projectsListHTML = projects.map((p, idx) => `
     <div class="admin-item-row">
       <div class="admin-item-title-col">
-        <strong>${escapeHtml(p.title)} <span class="admin-badge ${idx === 0 ? 'admin-badge-active' : 'admin-badge-draft'}">${idx === 0 ? 'Primary Active WIP' : 'WIP'}</span></strong>
+        <strong>${escapeHtml(p.title)} <span class="admin-badge ${p.isPrimary ? 'admin-badge-active' : 'admin-badge-draft'}">${p.isPrimary ? 'Primary Active WIP' : 'WIP'}</span></strong>
         <span>Status: ${escapeHtml(p.status)} (${p.progress || 0}% complete) — ${escapeHtml(p.wordCount || '')}</span>
       </div>
       <div class="admin-item-actions">
         <button type="button" class="admin-action-btn-sm" onclick="window.editAdminProject(${idx})">Edit</button>
-        ${idx > 0 ? `<button type="button" class="admin-action-btn-sm" onclick="window.setAdminPrimaryProject(${idx})">Set Primary</button>` : ''}
+        ${!p.isPrimary ? `<button type="button" class="admin-action-btn-sm" onclick="window.setAdminPrimaryProject(${idx})">Set Primary</button>` : ''}
         <button type="button" class="admin-action-btn-sm danger" onclick="window.deleteAdminProject(${idx})">Delete</button>
       </div>
     </div>

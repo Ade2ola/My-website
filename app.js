@@ -369,19 +369,19 @@ function renderAbout() {
   const data = window.authorData.aboutData || {};
 
   const tropesHTML = (data.favoriteTropes || []).map(t =>
-    `<li class="trope-badge" title="${escapeHtml(t.description || '')}">${escapeHtml(t.name || t)}</li>`
+    `<li class="trope-badge" title="${escapeHtml(typeof t === 'object' ? (t.description || '') : '')}">${escapeHtml(typeof t === 'object' ? (t.name || '') : t)}</li>`
   ).join('');
 
   const genresHTML = (data.favoriteGenres || []).map(g =>
-    `<li>${escapeHtml(g)}</li>`
+    `<li>${escapeHtml(typeof g === 'object' ? (g.name || '') : g)}</li>`
   ).join('');
 
   const factsHTML = (data.funFacts || []).map(fact =>
-    `<div class="fact-note"><p>${escapeHtml(fact)}</p></div>`
+    `<div class="fact-note"><p>${escapeHtml(typeof fact === 'object' ? (fact.text || '') : fact)}</p></div>`
   ).join('');
 
   const hobbiesHTML = (data.hobbies || []).map(h =>
-    `<li>${escapeHtml(h)}</li>`
+    `<li>${escapeHtml(typeof h === 'object' ? (h.name || '') : h)}</li>`
   ).join('');
 
   const pageTitle = data.pageTitle || "About Dessy";

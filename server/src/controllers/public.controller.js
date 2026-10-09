@@ -40,7 +40,7 @@ async function getFullSiteBundle(req, res, next) {
           purchaseLinks: { orderBy: { displayOrder: 'asc' } }
         }
       }),
-      prisma.writingProject.findMany({ orderBy: { displayOrder: 'asc' } }),
+      prisma.writingProject.findMany({ orderBy: [{ isPrimary: 'desc' }, { displayOrder: 'asc' }] }),
       prisma.deskLog.findMany({ orderBy: { displayOrder: 'asc' } }),
       prisma.manuscriptSnippet.findMany({ orderBy: { displayOrder: 'asc' } }),
       prisma.deskQuote.findMany({ orderBy: { displayOrder: 'asc' } }),
@@ -91,10 +91,10 @@ async function getFullSiteBundle(req, res, next) {
       pageSubtitle: aboutSetting ? aboutSetting.pageSubtitle : "",
       tagline: aboutSetting ? aboutSetting.tagline : "",
       whyIWrite: aboutSetting ? aboutSetting.whyIWrite : "",
-      favoriteTropes: tropes.map(t => ({ name: t.name, description: t.description })),
-      favoriteGenres: genres.map(g => g.name),
-      hobbies: hobbies.map(h => h.name),
-      funFacts: funFacts.map(f => f.text),
+      favoriteTropes: tropes.map(t => ({ id: t.id, name: t.name, description: t.description })),
+      favoriteGenres: genres.map(g => ({ id: g.id, name: g.name })),
+      hobbies: hobbies.map(h => ({ id: h.id, name: h.name })),
+      funFacts: funFacts.map(f => ({ id: f.id, text: f.text })),
       anonymityDetails: {
         location: aboutSetting ? aboutSetting.anonLocation : "",
         companion: aboutSetting ? aboutSetting.anonCompanion : "",
@@ -118,7 +118,7 @@ async function getFullSiteBundle(req, res, next) {
       characterArtPlaceholder: b.characterArtPlaceholder,
       pinterestMoodboard: b.pinterestMoodboard,
       authorNotes: b.authorNotes,
-      tropes: tropes.map(t => t.name), // or book specific if needed
+      tropes: tropes.map(t => t.name),
       characters: b.characters.map(c => ({ name: c.name, role: c.role, desc: c.desc })),
       playlist: b.playlist.map(p => ({ title: p.title, artist: p.artist })),
       purchaseLinks: b.purchaseLinks.map(l => ({ store: l.store, url: l.url, disabled: l.disabled }))
@@ -136,12 +136,13 @@ async function getFullSiteBundle(req, res, next) {
         status: p.status,
         progress: p.progress,
         wordCount: p.wordCount,
-        synopsis: p.synopsis
+        synopsis: p.synopsis,
+        isPrimary: p.isPrimary
       })),
-      updates: deskLogs.map(l => ({ date: l.date, text: l.text })),
-      snippets: snippets.map(s => ({ source: s.source, text: s.text })),
-      quotes: deskQuotes.map(q => q.text),
-      sneakPeeks: sneakPeeks.map(sp => ({ title: sp.title, desc: sp.desc }))
+      updates: deskLogs.map(l => ({ id: l.id, date: l.date, text: l.text })),
+      snippets: snippets.map(s => ({ id: s.id, source: s.source, text: s.text })),
+      quotes: deskQuotes.map(q => ({ id: q.id, text: q.text })),
+      sneakPeeks: sneakPeeks.map(sp => ({ id: sp.id, title: sp.title, desc: sp.desc }))
     };
 
     const formattedStore = storeProducts.map(p => ({

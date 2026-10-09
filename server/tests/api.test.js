@@ -160,6 +160,16 @@ describe('My-Website CMS API & Security Test Suite', () => {
       const found = siteRes.body.deskData.projects.find(p => p.id === projId);
       expect(found).toBeDefined();
       expect(found.status).toBe('Drafting Chapter 6');
+
+      // Set as primary project
+      const primaryRes = await agent
+        .patch(`/api/v1/admin/writing-projects/${projId}/set-primary`)
+        .set('X-CSRF-Token', csrfToken);
+      expect(primaryRes.statusCode).toBe(200);
+
+      const reSiteRes = await request(app).get('/api/v1/site');
+      expect(reSiteRes.body.deskData.projects[0].id).toBe(projId);
+      expect(reSiteRes.body.deskData.projects[0].isPrimary).toBe(true);
     });
 
     it('should create and update Timeline Logs, Snippets, and Sneak Peeks', async () => {
