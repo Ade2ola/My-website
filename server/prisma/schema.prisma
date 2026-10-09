@@ -29,14 +29,19 @@ model AdminSession {
 }
 
 model SiteSetting {
-  id             String   @id @default(uuid())
-  siteTitle      String   @default("Dessy Ackerman | Storyteller & Dreamer")
-  authorName     String   @default("Dessy Ackerman")
-  authorSubtitle String   @default("Storyteller & Dreamer")
-  deskStickyNote String   @default("Remember: The magic is in the rewriting.")
-  musicBoxLabel  String   @default("Cozy Music Box")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  siteTitle           String   @default("Dessy Ackerman | Storyteller & Dreamer")
+  authorName          String   @default("Dessy Ackerman")
+  authorSubtitle      String   @default("Storyteller & Dreamer")
+  deskStickyNote      String   @default("Remember: The magic is in the rewriting.")
+  musicBoxLabel       String   @default("Cozy Music Box")
+  deskPageTitle       String   @default("Writing Desk")
+  deskProjectsTitle   String   @default("Current Work-in-Progress")
+  deskSnippetsTitle   String   @default("Manuscript Snippets & Scraps")
+  deskLogsTitle       String   @default("Logs from the Desk")
+  deskSneakPeeksTitle String   @default("Sneak Peeks & Extras")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model SocialLink {

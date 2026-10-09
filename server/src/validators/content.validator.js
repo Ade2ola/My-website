@@ -5,7 +5,12 @@ const siteSettingsSchema = z.object({
   authorName: z.string().min(1).max(100).optional(),
   authorSubtitle: z.string().max(150).optional(),
   deskStickyNote: z.string().min(1).max(250).optional(),
-  musicBoxLabel: z.string().min(1).max(50).optional()
+  musicBoxLabel: z.string().min(1).max(50).optional(),
+  deskPageTitle: z.string().max(100).optional(),
+  deskProjectsTitle: z.string().max(100).optional(),
+  deskSnippetsTitle: z.string().max(100).optional(),
+  deskLogsTitle: z.string().max(100).optional(),
+  deskSneakPeeksTitle: z.string().max(100).optional()
 });
 
 const homeSettingsSchema = z.object({

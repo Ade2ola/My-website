@@ -654,7 +654,9 @@ function initQuoteSlider() {
   if (!quoteSlot || quotes.length === 0) return;
 
   const showQuote = (idx) => {
-    quoteSlot.innerHTML = `<p>${escapeHtml(quotes[idx])}</p>`;
+    const qObj = quotes[idx];
+    const qText = typeof qObj === 'object' ? qObj.text : qObj;
+    quoteSlot.innerHTML = `<p>${escapeHtml(qText)}</p>`;
   };
 
   if (activeQuoteIndex >= quotes.length) activeQuoteIndex = 0;

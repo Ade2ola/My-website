@@ -54,18 +54,15 @@ const adminDOM = {
 };
 
 // --- Initialization ---
-document.addEventListener('DOMContentLoaded', () => {
-  // Sync state with localStorage to persist content updates and deep-merge defaults
-  let localData = localStorage.getItem('dessy_archive_data');
-  if (localData) {
-    try {
-      const parsed = JSON.parse(localData);
-      window.authorData = deepMerge(window.authorData, parsed);
-    } catch (e) {
-      console.error("Failed to parse local storage data", e);
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('/api/v1/site');
+    if (res.ok) {
+      const dbData = await res.json();
+      window.authorData = deepMerge(window.authorData, dbData);
     }
-  } else {
-    localStorage.setItem('dessy_archive_data', JSON.stringify(window.authorData));
+  } catch (e) {
+    console.warn("Could not load database site bundle", e);
   }
 
   initModal();
@@ -1593,17 +1590,24 @@ function renderAdminDeskTab() {
     </div>
   `;
 
-  document.getElementById('desk-headings-form').addEventListener('submit', (e) => {
+  document.getElementById('desk-headings-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!window.authorData.deskData) window.authorData.deskData = {};
-    const d = window.authorData.deskData;
-    d.pageTitle = document.getElementById('desk-head-title').value.trim();
-    d.projectsTitle = document.getElementById('desk-head-wip').value.trim();
-    d.snippetsTitle = document.getElementById('desk-head-snippets').value.trim();
-    d.logsTitle = document.getElementById('desk-head-logs').value.trim();
+    const deskPageTitle = document.getElementById('desk-head-title').value.trim();
+    const deskProjectsTitle = document.getElementById('desk-head-wip').value.trim();
+    const deskSnippetsTitle = document.getElementById('desk-head-snippets').value.trim();
+    const deskLogsTitle = document.getElementById('desk-head-logs').value.trim();
 
-    saveLocalData();
-    showAdminToast("Desk headings saved!");
+    try {
+      await apiFetch('/api/v1/admin/settings', {
+        method: 'PATCH',
+        body: { deskPageTitle, deskProjectsTitle, deskSnippetsTitle, deskLogsTitle }
+      });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Desk headings saved to Database! ✨");
+    } catch (err) {
+      showAdminToast("Error saving desk headings: " + err.message, "❌");
+    }
   });
 
   const slider = document.getElementById('proj-progress');
@@ -1925,17 +1929,20 @@ function renderAdminQuotesTab() {
   const container = document.getElementById('admin-quotes');
   const quotes = (window.authorData.deskData && window.authorData.deskData.quotes) || [];
 
-  const quotesHTML = quotes.map((q, idx) => `
+  const quotesHTML = quotes.map((q, idx) => {
+    const qText = typeof q === 'object' ? q.text : q;
+    return `
     <div class="admin-item-row">
       <div class="admin-item-title-col">
-        <span style="color: var(--color-ink); font-style: normal;">${escapeHtml(q)}</span>
+        <span style="color: var(--color-ink); font-style: normal;">${escapeHtml(qText)}</span>
       </div>
       <div class="admin-item-actions">
-        <button class="admin-action-btn-sm" onclick="window.editAdminQuote(${idx})">Edit</button>
-        <button class="admin-action-btn-sm danger" onclick="window.deleteAdminQuote(${idx})">Delete</button>
+        <button type="button" class="admin-action-btn-sm" onclick="window.editAdminQuote(${idx})">Edit</button>
+        <button type="button" class="admin-action-btn-sm danger" onclick="window.deleteAdminQuote(${idx})">Delete</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   container.innerHTML = `
     <div class="admin-editor-card" id="quote-editor-card" style="display: none;">
@@ -1970,17 +1977,21 @@ function renderAdminQuotesTab() {
   });
 }
 
+window.editAdminQuote = function(idx) {
+  window.openQuoteEditor(idx);
+};
+
 window.openQuoteEditor = function (idx = null) {
   editingQuoteIdx = idx;
   const card = document.getElementById('quote-editor-card');
   const list = document.getElementById('quote-list-container');
   const title = document.getElementById('quote-editor-title');
-  const form = document.getElementById('quote-editor-form');
 
-  form.reset();
-  if (idx !== null) {
+  document.getElementById('quote-editor-form').reset();
+  if (idx !== null && window.authorData.deskData.quotes[idx]) {
     title.textContent = "Edit Quote Card";
-    document.getElementById('quote-text-field').value = window.authorData.deskData.quotes[idx];
+    const q = window.authorData.deskData.quotes[idx];
+    document.getElementById('quote-text-field').value = typeof q === 'object' ? q.text : q;
   } else {
     title.textContent = "Catalog New Quote Card";
   }
@@ -1996,27 +2007,36 @@ window.closeQuoteEditor = function () {
   document.getElementById('quote-list-container').style.display = 'block';
 };
 
-function saveQuoteForm() {
-  const val = document.getElementById('quote-text-field').value.trim();
-  if (!window.authorData.deskData.quotes) window.authorData.deskData.quotes = [];
+async function saveQuoteForm() {
+  const text = document.getElementById('quote-text-field').value.trim();
+  const q = (editingQuoteIdx !== null) ? window.authorData.deskData.quotes[editingQuoteIdx] : null;
 
-  if (editingQuoteIdx !== null) {
-    window.authorData.deskData.quotes[editingQuoteIdx] = val;
-  } else {
-    window.authorData.deskData.quotes.push(val);
+  try {
+    const url = (q && q.id) ? `/api/v1/admin/quotes/${q.id}` : '/api/v1/admin/quotes';
+    const method = (q && q.id) ? 'PATCH' : 'POST';
+    await apiFetch(url, { method, body: { text } });
+    const res = await fetch('/api/v1/site');
+    if (res.ok) window.authorData = await res.json();
+    showAdminToast("Quote card saved to Database! ✨");
+    window.closeQuoteEditor();
+    renderAdminQuotesTab();
+  } catch (err) {
+    showAdminToast("Error saving quote: " + err.message, "❌");
   }
-
-  saveLocalData();
-  showAdminToast("Quote card cataloged!");
-  window.closeQuoteEditor();
-  renderAdminQuotesTab();
 }
 
-window.deleteAdminQuote = function (idx) {
-  if (confirm("Are you sure you want to delete this quote card?")) {
-    window.authorData.deskData.quotes.splice(idx, 1);
-    saveLocalData();
-    renderAdminQuotesTab();
+window.deleteAdminQuote = async function (idx) {
+  const q = window.authorData.deskData.quotes[idx];
+  if (q && q.id && confirm("Are you sure you want to delete this quote card?")) {
+    try {
+      await apiFetch(`/api/v1/admin/quotes/${q.id}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Quote card deleted from Database.");
+      renderAdminQuotesTab();
+    } catch (err) {
+      showAdminToast("Error deleting quote: " + err.message, "❌");
+    }
   }
 };
 
@@ -2029,17 +2049,19 @@ function renderAdminMascotTab() {
   const mascot = site.mascot || {};
   const catQuotes = mascot.quotes || [];
 
-  const quotesHTML = catQuotes.map((q, idx) => `
+  const quotesHTML = catQuotes.map((q, idx) => {
+    const qText = typeof q === 'object' ? q.text : q;
+    return `
     <div class="admin-item-row" style="margin-bottom: 0.6rem;">
       <div class="admin-item-title-col">
-        <span style="color: var(--color-ink); font-style: normal;">${escapeHtml(q)}</span>
+        <span style="color: var(--color-ink); font-style: normal;">${escapeHtml(qText)}</span>
       </div>
       <div class="admin-item-actions">
-        <button type="button" class="admin-action-btn-sm" onclick="window.editAdminCatQuote(${idx})">Edit</button>
         <button type="button" class="admin-action-btn-sm danger" onclick="window.deleteAdminCatQuote(${idx})">Delete</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   container.innerHTML = `
     <!-- Mascot Identity & Initial Speech -->
@@ -2081,44 +2103,50 @@ function renderAdminMascotTab() {
     </div>
   `;
 
-  document.getElementById('mascot-settings-form').addEventListener('submit', (e) => {
+  document.getElementById('mascot-settings-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!window.authorData.siteConfig.mascot) window.authorData.siteConfig.mascot = {};
-    window.authorData.siteConfig.mascot.name = document.getElementById('mascot-name-field').value.trim();
-    window.authorData.siteConfig.mascot.initialSpeech = document.getElementById('mascot-speech-field').value.trim();
+    const name = document.getElementById('mascot-name-field').value.trim();
+    const initialSpeech = document.getElementById('mascot-speech-field').value.trim();
 
-    saveLocalData();
-    showAdminToast("Mascot companion settings saved!");
+    try {
+      await apiFetch('/api/v1/admin/mascot', { method: 'PATCH', body: { name, initialSpeech } });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Mascot companion settings saved to Database! ✨");
+    } catch (err) {
+      showAdminToast("Error saving mascot settings: " + err.message, "❌");
+    }
   });
 
-  document.getElementById('add-cat-quote-form').addEventListener('submit', (e) => {
+  document.getElementById('add-cat-quote-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const val = document.getElementById('new-cat-quote-input').value.trim();
-    if (!window.authorData.siteConfig.mascot.quotes) window.authorData.siteConfig.mascot.quotes = [];
-    window.authorData.siteConfig.mascot.quotes.push(val);
+    const text = document.getElementById('new-cat-quote-input').value.trim();
 
-    saveLocalData();
-    showAdminToast("Cat dialogue added!");
-    renderAdminMascotTab();
+    try {
+      await apiFetch('/api/v1/admin/mascot/quotes', { method: 'POST', body: { text } });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Cat dialogue added to Database! ✨");
+      renderAdminMascotTab();
+    } catch (err) {
+      showAdminToast("Error adding dialogue: " + err.message, "❌");
+    }
   });
 }
 
-window.editAdminCatQuote = function(idx) {
-  const current = window.authorData.siteConfig.mascot.quotes[idx];
-  const updated = prompt("Edit Poe's dialogue line:", current);
-  if (updated && updated.trim()) {
-    window.authorData.siteConfig.mascot.quotes[idx] = updated.trim();
-    saveLocalData();
-    showAdminToast("Dialogue updated!");
-    renderAdminMascotTab();
-  }
-};
-
-window.deleteAdminCatQuote = function(idx) {
-  if (confirm("Delete this dialogue line?")) {
-    window.authorData.siteConfig.mascot.quotes.splice(idx, 1);
-    saveLocalData();
-    renderAdminMascotTab();
+window.deleteAdminCatQuote = async function(idx) {
+  const q = window.authorData.siteConfig.mascot.quotes[idx];
+  const qId = (typeof q === 'object') ? q.id : null;
+  if (qId && confirm("Delete this dialogue line?")) {
+    try {
+      await apiFetch(`/api/v1/admin/mascot/quotes/${qId}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Dialogue deleted from Database.");
+      renderAdminMascotTab();
+    } catch (err) {
+      showAdminToast("Error deleting dialogue: " + err.message, "❌");
+    }
   }
 };
 
@@ -2243,38 +2271,40 @@ window.closeStoreEditor = function () {
   document.getElementById('store-list-container').style.display = 'block';
 };
 
-function saveStoreForm() {
+async function saveStoreForm() {
   const title = document.getElementById('store-title').value.trim();
-  const id = editingStoreId || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   const description = document.getElementById('store-desc').value.trim();
   const price = document.getElementById('store-price').value.trim();
   const status = document.getElementById('store-status').value;
   const link = document.getElementById('store-link').value.trim();
 
-  const itemData = { id, title, description, price, status, link };
+  const body = { title, description, price, status, link };
 
-  if (!window.authorData.storeData) window.authorData.storeData = [];
-
-  if (editingStoreId) {
-    const idx = window.authorData.storeData.findIndex(i => i.id === editingStoreId);
-    if (idx !== -1) {
-      window.authorData.storeData[idx] = itemData;
-    }
-  } else {
-    window.authorData.storeData.push(itemData);
+  try {
+    const url = editingStoreId ? `/api/v1/admin/products/${editingStoreId}` : '/api/v1/admin/products';
+    const method = editingStoreId ? 'PATCH' : 'POST';
+    await apiFetch(url, { method, body });
+    const res = await fetch('/api/v1/site');
+    if (res.ok) window.authorData = await res.json();
+    showAdminToast(`Saved product "${title}" to Database! ✨`);
+    window.closeStoreEditor();
+    renderAdminStoreTab();
+  } catch (err) {
+    showAdminToast("Error saving product: " + err.message, "❌");
   }
-
-  saveLocalData();
-  showAdminToast(`Saved product "${title}"!`);
-  window.closeStoreEditor();
-  renderAdminStoreTab();
 }
 
-window.deleteAdminStoreItem = function (itemId) {
+window.deleteAdminStoreItem = async function (itemId) {
   if (confirm("Are you sure you want to delete this boutique product?")) {
-    window.authorData.storeData = window.authorData.storeData.filter(i => i.id !== itemId);
-    saveLocalData();
-    renderAdminStoreTab();
+    try {
+      await apiFetch(`/api/v1/admin/products/${itemId}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Product deleted from Database.");
+      renderAdminStoreTab();
+    } catch (err) {
+      showAdminToast("Error deleting product: " + err.message, "❌");
+    }
   }
 };
 

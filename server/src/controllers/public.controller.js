@@ -125,11 +125,11 @@ async function getFullSiteBundle(req, res, next) {
     }));
 
     const deskData = {
-      pageTitle: "Writing Desk",
-      projectsTitle: "Current Work-in-Progress",
-      snippetsTitle: "Manuscript Snippets & Scraps",
-      logsTitle: "Logs from the Desk",
-      sneakPeeksTitle: "Sneak Peeks & Extras",
+      pageTitle: siteSetting ? siteSetting.deskPageTitle : "Writing Desk",
+      projectsTitle: siteSetting ? siteSetting.deskProjectsTitle : "Current Work-in-Progress",
+      snippetsTitle: siteSetting ? siteSetting.deskSnippetsTitle : "Manuscript Snippets & Scraps",
+      logsTitle: siteSetting ? siteSetting.deskLogsTitle : "Logs from the Desk",
+      sneakPeeksTitle: siteSetting ? siteSetting.deskSneakPeeksTitle : "Sneak Peeks & Extras",
       projects: projects.map(p => ({
         id: p.id,
         title: p.title,
