@@ -1,21 +1,203 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>InkForge — Professional Book Editor</title>
-    <!-- Mammoth.js for DOCX parsing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-    <!-- PDF.js for PDF text extraction -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <script>
-      // Set PDF.js worker source
-      window.pdfjsWorkerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dessy Ackerman | Storyteller & Dreamer</title>
+  <meta name="description" content="Welcome to the digital archive and writing desk of Dessy Ackerman, author of cozy fantasy and dark academia romance. Explore secret worlds, ongoing manuscripts, and story moodboards.">
+  
+  <!-- SEO & Accessibility -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✒️</text></svg>">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Lora:ital,wght@0,400..700;1,400..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+  
+  <!-- Core Styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Background overlay representing a textured wooden desk surface -->
+  <div class="desk-surface">
+    
+    <!-- Ambient Overlay for cozy lighting (warm glow or candle effect) -->
+    <div class="desk-glow"></div>
+    <div class="candle-flocculence"></div>
+
+    <!-- Main Container representing the Scrapbook/Journal -->
+    <div class="scrapbook-wrapper" id="scrapbook-app">
+      
+      <!-- Interactive Doodles scattered around the desk (under the scrapbook but above desk) -->
+      <div class="desk-decorations" aria-hidden="true">
+        <!-- SVG coffee ring stain -->
+        <svg class="doodle coffee-ring" viewBox="0 0 100 100" width="120" height="120">
+          <circle cx="50" cy="50" r="40" stroke="rgba(139, 115, 85, 0.15)" stroke-width="1.5" fill="none" stroke-dasharray="100 10 30 5 15 20" transform="rotate(45 50 50)" />
+          <circle cx="50" cy="50" r="42" stroke="rgba(139, 115, 85, 0.1)" stroke-width="0.7" fill="none" stroke-dasharray="60 40 80 20" transform="rotate(120 50 50)" />
+        </svg>
+        
+        <!-- Pinned note (floating/rotated slightly) -->
+        <div class="desk-pinned-note" id="desk-sticky-note">
+          <span class="tape-strip"></span>
+          <p class="handwritten" id="desk-sticky-text">"Remember: The magic is in the rewriting."</p>
+        </div>
+        
+        <!-- Interactive Music Box (Web Audio API Synthesizer) -->
+        <div class="desk-music-box" id="music-box" title="Click to play a cozy melody">
+          <div class="music-box-crank"></div>
+          <span class="music-box-label handwritten" id="music-box-label">Cozy Music Box</span>
+          <div class="music-notes-container"></div>
+        </div>
+      </div>
+
+      <!-- Scrapbook Tabs / Navigation (Styled as taped bookmarks) -->
+      <nav class="scrapbook-nav" aria-label="Main Navigation">
+        <ul class="nav-list">
+          <li>
+            <button class="nav-tab active" data-tab="home" id="nav-btn-home">
+              <span class="tab-label" id="nav-label-home">Home</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-tab" data-tab="about" id="nav-btn-about">
+              <span class="tab-label" id="nav-label-about">About Dessy</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-tab" data-tab="books" id="nav-btn-books">
+              <span class="tab-label" id="nav-label-books">Bookshelf</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-tab" data-tab="desk" id="nav-btn-desk">
+              <span class="tab-label" id="nav-label-desk">Writing Desk</span>
+            </button>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Scrapbook Body - Styled as open paper pages -->
+      <main class="scrapbook-body" id="scrapbook-page-container">
+        
+        <!-- Interactive Paperclips, Pins, Stamps on the Page -->
+        <div class="page-hardware" aria-hidden="true">
+          <div class="paperclip clip-left"></div>
+          <div class="paperclip clip-right"></div>
+          <div class="pressed-fern">🌿</div>
+        </div>
+
+        <!-- The main container for dynamic content rendering -->
+        <div id="content-slot" class="page-content-slot fade-in-page">
+          <!-- Dynamically populated via app.js -->
+          <div class="loading-placeholder">
+            <span class="handwritten">Leafing through the archive...</span>
+          </div>
+        </div>
+        
+      </main>
+
+      <!-- Mobile navigation drawer / overlay buttons for smaller screens -->
+      <div class="mobile-nav-toggle-wrapper">
+        <button class="mobile-nav-toggle" id="mobile-nav-toggle" aria-expanded="false" aria-controls="mobile-nav-menu" aria-label="Toggle Navigation Menu">
+          <span class="toggle-icon">📖</span>
+        </button>
+        <div class="mobile-nav-menu" id="mobile-nav-menu" aria-hidden="true">
+          <button class="mobile-nav-item active" data-tab="home" id="mob-label-home">Home</button>
+          <button class="mobile-nav-item" data-tab="about" id="mob-label-about">About Dessy</button>
+          <button class="mobile-nav-item" data-tab="books" id="mob-label-books">Bookshelf</button>
+          <button class="mobile-nav-item" data-tab="desk" id="mob-label-desk">Writing Desk</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Desk Footer - Social tags, Candle switch, and OC Mascot companion -->
+    <footer class="desk-footer">
+      <div class="footer-left">
+        <!-- Theme toggle: Light/Candle light / Night ink -->
+        <button class="desk-action-btn" id="candle-toggle" aria-label="Toggle Candlelight Ambient Mode" title="Toggle night-mode candle light">
+          <span class="icon">🕯️</span> <span class="btn-text handwritten">Light Candle</span>
+        </button>
+      </div>
+      
+      <!-- Social tag items, styled as stamps -->
+      <div class="footer-center social-stamps" id="footer-social-stamps">
+        <!-- Dynamically populated via app.js with fallback -->
+        <a href="https://pinterest.com" class="social-stamp-link" target="_blank" rel="noopener" aria-label="Pinterest Profile">
+          <span class="stamp-bg">📌</span>
+          <span class="stamp-label handwritten">Pinterest</span>
+        </a>
+        <a href="https://instagram.com" class="social-stamp-link" target="_blank" rel="noopener" aria-label="Instagram Profile">
+          <span class="stamp-bg">📷</span>
+          <span class="stamp-label handwritten">Instagram</span>
+        </a>
+        <a href="https://substack.com" class="social-stamp-link" target="_blank" rel="noopener" aria-label="Substack Profile">
+          <span class="stamp-bg">✍️</span>
+          <span class="stamp-label handwritten">Substack</span>
+        </a>
+        <a href="https://tiktok.com" class="social-stamp-link" target="_blank" rel="noopener" aria-label="TikTok Profile">
+          <span class="stamp-bg">🎵</span>
+          <span class="stamp-label handwritten">TikTok</span>
+        </a>
+      </div>
+
+      <!-- Mascot Companion: Poe the Cat (original vector sketch styled in CSS) -->
+      <div class="mascot-companion" id="mascot-companion" title="Poe the Desk Cat. Click him for a writer's wisdom!">
+        <div class="speech-bubble-wrapper" id="mascot-speech" aria-live="polite">
+          <div class="speech-bubble handwritten">Meow? (Click me!)</div>
+        </div>
+        <div class="cat-svg-container">
+          <svg class="desk-cat" viewBox="0 0 100 100" width="80" height="80">
+            <!-- Cat Body -->
+            <path d="M70,85 C70,65 50,55 35,65 C25,72 25,85 25,85" fill="#2b251e" stroke="#1d1914" stroke-width="2" />
+            <!-- Cat tail -->
+            <path d="M70,85 C75,85 85,80 85,70 C85,60 80,60 78,65 C76,70 73,80 70,85" fill="#2b251e" stroke="#1d1914" stroke-width="2" />
+            <!-- Cat Head -->
+            <ellipse cx="35" cy="50" rx="18" ry="15" fill="#2b251e" stroke="#1d1914" stroke-width="2" />
+            <!-- Ears -->
+            <polygon points="20,40 15,20 28,38" fill="#2b251e" stroke="#1d1914" stroke-width="2" />
+            <polygon points="50,40 55,20 42,38" fill="#2b251e" stroke="#1d1914" stroke-width="2" />
+            <!-- Inner Ears -->
+            <polygon points="21,37 17,25 26,36" fill="#c89f9c" />
+            <polygon points="49,37 53,25 44,36" fill="#c89f9c" />
+            <!-- Eyes (Blinking animated via CSS class) -->
+            <ellipse class="cat-eye eye-left" cx="28" cy="48" rx="2.5" ry="3.5" fill="#e8d8a7" />
+            <ellipse class="cat-eye eye-right" cx="42" cy="48" rx="2.5" ry="3.5" fill="#e8d8a7" />
+            <!-- Pupils -->
+            <ellipse class="cat-pupil eye-left" cx="28" cy="48" rx="0.8" ry="3" fill="#1d1914" />
+            <ellipse class="cat-pupil eye-right" cx="42" cy="48" rx="0.8" ry="3" fill="#1d1914" />
+            <!-- Nose & Whiskers -->
+            <polygon points="35,53 33,51 37,51" fill="#c89f9c" />
+            <path d="M35,53 C34,55 33,56 32,56 M35,53 C36,55 37,56 38,56" stroke="#1d1914" stroke-width="1" fill="none" />
+            <!-- Whiskers -->
+            <line x1="20" y1="52" x2="8" y2="52" stroke="#eaddc2" stroke-width="0.8" opacity="0.7" />
+            <line x1="20" y1="55" x2="9" y2="57" stroke="#eaddc2" stroke-width="0.8" opacity="0.7" />
+            <line x1="50" y1="52" x2="62" y2="52" stroke="#eaddc2" stroke-width="0.8" opacity="0.7" />
+            <line x1="50" y1="55" x2="61" y2="57" stroke="#eaddc2" stroke-width="0.8" opacity="0.7" />
+          </svg>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Toast Notification Container -->
+    <div class="admin-toast-container" id="admin-toast-container"></div>
+
+    <!-- Book Detail Modal (scrapbook overlay style) -->
+    <div class="modal-overlay" id="book-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="modal-book-title">
+      <div class="modal-container">
+        <!-- Close button styled as a paperclip/pinned ribbon -->
+        <button class="modal-close" id="modal-close-btn" aria-label="Close Details">✕ Close</button>
+        <div class="modal-content" id="modal-content-slot">
+          <!-- Dynamically populated when a book is selected -->
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Javascript Files (loaded sequentially to support local file loading) -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
 </html>
