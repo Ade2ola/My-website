@@ -65,15 +65,25 @@ router.patch('/books/:id', adminController.updateBook);
 router.delete('/books/:id', adminController.deleteBook);
 
 // 5. Writing Desk & Projects
+router.post('/writing-projects', adminController.createWritingProject);
 router.patch('/writing-projects/:id', adminController.updateWritingProject);
+router.delete('/writing-projects/:id', adminController.deleteWritingProject);
+router.patch('/writing-projects/:id/set-primary', adminController.setPrimaryWritingProject);
+
 router.post('/desk-logs', adminController.addDeskLog);
+router.patch('/desk-logs/:id', adminController.updateDeskLog);
 router.delete('/desk-logs/:id', adminController.deleteDeskLog);
+
 router.post('/snippets', adminController.addSnippet);
+router.patch('/snippets/:id', adminController.updateSnippet);
 router.delete('/snippets/:id', adminController.deleteSnippet);
+
 router.post('/quotes', adminController.addQuote);
 router.patch('/quotes/:id', adminController.updateQuote);
 router.delete('/quotes/:id', adminController.deleteQuote);
+
 router.post('/sneak-peeks', adminController.addSneakPeek);
+router.patch('/sneak-peeks/:id', adminController.updateSneakPeek);
 router.delete('/sneak-peeks/:id', adminController.deleteSneakPeek);
 
 // 6. Mascot & Audio

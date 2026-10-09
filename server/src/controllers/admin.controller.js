@@ -317,6 +317,24 @@ async function deleteBook(req, res, next) {
 }
 
 // 6. Writing Desk & Projects
+async function createWritingProject(req, res, next) {
+  try {
+    const parse = writingProjectSchema.safeParse(req.body);
+    if (!parse.success) return res.status(400).json({ success: false, errors: parse.error.errors });
+    const count = await prisma.writingProject.count();
+    const isFirst = count === 0;
+    const project = await prisma.writingProject.create({
+      data: {
+        ...parse.data,
+        displayOrder: count,
+        isPrimary: parse.data.isPrimary || isFirst
+      }
+    });
+    await logAudit(req.user.id, 'CREATE_WRITING_PROJECT', 'WritingProject', project.id);
+    res.status(201).json({ success: true, data: project });
+  } catch (err) { next(err); }
+}
+
 async function updateWritingProject(req, res, next) {
   try {
     const { id } = req.params;
@@ -343,6 +361,27 @@ async function updateWritingProject(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function deleteWritingProject(req, res, next) {
+  try {
+    const { id } = req.params;
+    await prisma.writingProject.delete({ where: { id } });
+    await logAudit(req.user.id, 'DELETE_WRITING_PROJECT', 'WritingProject', id);
+    res.status(200).json({ success: true, message: 'Writing project deleted' });
+  } catch (err) { next(err); }
+}
+
+async function setPrimaryWritingProject(req, res, next) {
+  try {
+    const { id } = req.params;
+    await prisma.$transaction([
+      prisma.writingProject.updateMany({ data: { isPrimary: false } }),
+      prisma.writingProject.update({ where: { id }, data: { isPrimary: true } })
+    ]);
+    await logAudit(req.user.id, 'SET_PRIMARY_WRITING_PROJECT', 'WritingProject', id);
+    res.status(200).json({ success: true, message: 'Primary WIP updated' });
+  } catch (err) { next(err); }
+}
+
 async function addDeskLog(req, res, next) {
   try {
     const { date, text } = req.body;
@@ -351,6 +390,17 @@ async function addDeskLog(req, res, next) {
     const log = await prisma.deskLog.create({ data: { date, text, displayOrder: count } });
     await logAudit(req.user.id, 'ADD_DESK_LOG', 'DeskLog', log.id);
     res.status(201).json({ success: true, data: log });
+  } catch (err) { next(err); }
+}
+
+async function updateDeskLog(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { date, text } = req.body;
+    if (!date || !text) return res.status(400).json({ success: false, message: 'Date and text required' });
+    const log = await prisma.deskLog.update({ where: { id }, data: { date, text } });
+    await logAudit(req.user.id, 'UPDATE_DESK_LOG', 'DeskLog', id);
+    res.status(200).json({ success: true, data: log });
   } catch (err) { next(err); }
 }
 
@@ -371,6 +421,17 @@ async function addSnippet(req, res, next) {
     const snip = await prisma.manuscriptSnippet.create({ data: { source, text, displayOrder: count } });
     await logAudit(req.user.id, 'ADD_SNIPPET', 'ManuscriptSnippet', snip.id);
     res.status(201).json({ success: true, data: snip });
+  } catch (err) { next(err); }
+}
+
+async function updateSnippet(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { source, text } = req.body;
+    if (!source || !text) return res.status(400).json({ success: false, message: 'Source and text required' });
+    const snip = await prisma.manuscriptSnippet.update({ where: { id }, data: { source, text } });
+    await logAudit(req.user.id, 'UPDATE_SNIPPET', 'ManuscriptSnippet', id);
+    res.status(200).json({ success: true, data: snip });
   } catch (err) { next(err); }
 }
 
@@ -421,6 +482,17 @@ async function addSneakPeek(req, res, next) {
     const peek = await prisma.sneakPeek.create({ data: { title, desc, displayOrder: count } });
     await logAudit(req.user.id, 'ADD_SNEAK_PEEK', 'SneakPeek', peek.id);
     res.status(201).json({ success: true, data: peek });
+  } catch (err) { next(err); }
+}
+
+async function updateSneakPeek(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { title, desc } = req.body;
+    if (!title || !desc) return res.status(400).json({ success: false, message: 'Title and desc required' });
+    const peek = await prisma.sneakPeek.update({ where: { id }, data: { title, desc } });
+    await logAudit(req.user.id, 'UPDATE_SNEAK_PEEK', 'SneakPeek', id);
+    res.status(200).json({ success: true, data: peek });
   } catch (err) { next(err); }
 }
 
@@ -596,15 +668,21 @@ module.exports = {
   createBook,
   updateBook,
   deleteBook,
+  createWritingProject,
   updateWritingProject,
+  deleteWritingProject,
+  setPrimaryWritingProject,
   addDeskLog,
+  updateDeskLog,
   deleteDeskLog,
   addSnippet,
+  updateSnippet,
   deleteSnippet,
   addQuote,
   updateQuote,
   deleteQuote,
   addSneakPeek,
+  updateSneakPeek,
   deleteSneakPeek,
   updateMascotConfig,
   addMascotQuote,

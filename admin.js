@@ -753,95 +753,164 @@ function renderAdminAboutTab() {
   `;
 
   // Bind Main Form Submit
-  document.getElementById('admin-about-main-form').addEventListener('submit', (e) => {
+  document.getElementById('admin-about-main-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!window.authorData.aboutData) window.authorData.aboutData = {};
-    const ab = window.authorData.aboutData;
-    ab.pageTitle = document.getElementById('about-page-title').value.trim();
-    ab.pageSubtitle = document.getElementById('about-page-subtitle').value.trim();
-    ab.whyIWrite = document.getElementById('about-why-i-write').value.trim();
+    const pageTitle = document.getElementById('about-page-title').value.trim();
+    const pageSubtitle = document.getElementById('about-page-subtitle').value.trim();
+    const whyIWrite = document.getElementById('about-why-i-write').value.trim();
+    const anonLocation = document.getElementById('anon-location').value.trim();
+    const anonCompanion = document.getElementById('anon-companion').value.trim();
+    const anonBeverage = document.getElementById('anon-beverage').value.trim();
 
-    if (!ab.anonymityDetails) ab.anonymityDetails = {};
-    ab.anonymityDetails.location = document.getElementById('anon-location').value.trim();
-    ab.anonymityDetails.companion = document.getElementById('anon-companion').value.trim();
-    ab.anonymityDetails.beverage = document.getElementById('anon-beverage').value.trim();
-
-    saveLocalData();
-    showAdminToast("About Page details saved!");
+    try {
+      await apiFetch('/api/v1/admin/about', {
+        method: 'PATCH',
+        body: { pageTitle, pageSubtitle, whyIWrite, anonLocation, anonCompanion, anonBeverage }
+      });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("About Page details saved to Database! ✨");
+    } catch (err) {
+      showAdminToast("Error saving About details: " + err.message, "❌");
+    }
   });
 
   // Bind Add Trope
-  document.getElementById('admin-add-trope-form').addEventListener('submit', (e) => {
+  document.getElementById('admin-add-trope-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('new-trope-name').value.trim();
     const description = document.getElementById('new-trope-desc').value.trim();
-    if (!window.authorData.aboutData.favoriteTropes) window.authorData.aboutData.favoriteTropes = [];
-    window.authorData.aboutData.favoriteTropes.push({ name, description });
 
-    saveLocalData();
-    showAdminToast(`Added trope "${name}"!`);
-    renderAdminAboutTab();
+    try {
+      await apiFetch('/api/v1/admin/tropes', {
+        method: 'POST',
+        body: { name, description }
+      });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast(`Added trope "${name}"! ✨`);
+      renderAdminAboutTab();
+    } catch (err) {
+      showAdminToast("Error adding trope: " + err.message, "❌");
+    }
   });
 
   // Bind Add Genre
-  document.getElementById('admin-add-genre-form').addEventListener('submit', (e) => {
+  document.getElementById('admin-add-genre-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const val = document.getElementById('new-genre-input').value.trim();
-    if (!window.authorData.aboutData.favoriteGenres) window.authorData.aboutData.favoriteGenres = [];
-    window.authorData.aboutData.favoriteGenres.push(val);
+    const name = document.getElementById('new-genre-input').value.trim();
 
-    saveLocalData();
-    showAdminToast(`Added genre "${val}"!`);
-    renderAdminAboutTab();
+    try {
+      await apiFetch('/api/v1/admin/genres', {
+        method: 'POST',
+        body: { name }
+      });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast(`Added genre "${name}"! ✨`);
+      renderAdminAboutTab();
+    } catch (err) {
+      showAdminToast("Error adding genre: " + err.message, "❌");
+    }
   });
 
   // Bind Add Hobby
-  document.getElementById('admin-add-hobby-form').addEventListener('submit', (e) => {
+  document.getElementById('admin-add-hobby-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const val = document.getElementById('new-hobby-input').value.trim();
-    if (!window.authorData.aboutData.hobbies) window.authorData.aboutData.hobbies = [];
-    window.authorData.aboutData.hobbies.push(val);
+    const name = document.getElementById('new-hobby-input').value.trim();
 
-    saveLocalData();
-    showAdminToast(`Added hobby "${val}"!`);
-    renderAdminAboutTab();
+    try {
+      await apiFetch('/api/v1/admin/hobbies', {
+        method: 'POST',
+        body: { name }
+      });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast(`Added hobby "${name}"! ✨`);
+      renderAdminAboutTab();
+    } catch (err) {
+      showAdminToast("Error adding hobby: " + err.message, "❌");
+    }
   });
 
   // Bind Add Fun Fact
-  document.getElementById('admin-add-fact-form').addEventListener('submit', (e) => {
+  document.getElementById('admin-add-fact-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const val = document.getElementById('new-fact-text').value.trim();
-    if (!window.authorData.aboutData.funFacts) window.authorData.aboutData.funFacts = [];
-    window.authorData.aboutData.funFacts.push(val);
+    const text = document.getElementById('new-fact-text').value.trim();
 
-    saveLocalData();
-    showAdminToast("Pinned new fun fact!");
-    renderAdminAboutTab();
+    try {
+      await apiFetch('/api/v1/admin/fun-facts', {
+        method: 'POST',
+        body: { text }
+      });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Pinned new fun fact to Database! ✨");
+      renderAdminAboutTab();
+    } catch (err) {
+      showAdminToast("Error adding fun fact: " + err.message, "❌");
+    }
   });
 }
 
-window.deleteAdminTrope = function(idx) {
-  window.authorData.aboutData.favoriteTropes.splice(idx, 1);
-  saveLocalData();
-  renderAdminAboutTab();
+window.deleteAdminTrope = async function(idx) {
+  const trope = window.authorData.aboutData.favoriteTropes[idx];
+  if (trope && trope.id && confirm("Delete this trope?")) {
+    try {
+      await apiFetch(`/api/v1/admin/tropes/${trope.id}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      renderAdminAboutTab();
+    } catch (err) {
+      showAdminToast("Error deleting trope: " + err.message, "❌");
+    }
+  }
 };
 
-window.deleteAdminGenre = function(idx) {
-  window.authorData.aboutData.favoriteGenres.splice(idx, 1);
-  saveLocalData();
-  renderAdminAboutTab();
+window.deleteAdminGenre = async function(idx) {
+  const genre = window.authorData.aboutData.favoriteGenres[idx];
+  // If genre is an object or string
+  const genreId = (typeof genre === 'object') ? genre.id : null;
+  if (genreId && confirm("Delete this genre tag?")) {
+    try {
+      await apiFetch(`/api/v1/admin/genres/${genreId}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      renderAdminAboutTab();
+    } catch (err) {
+      showAdminToast("Error deleting genre: " + err.message, "❌");
+    }
+  }
 };
 
-window.deleteAdminHobby = function(idx) {
-  window.authorData.aboutData.hobbies.splice(idx, 1);
-  saveLocalData();
-  renderAdminAboutTab();
+window.deleteAdminHobby = async function(idx) {
+  const hobby = window.authorData.aboutData.hobbies[idx];
+  const hobbyId = (typeof hobby === 'object') ? hobby.id : null;
+  if (hobbyId && confirm("Delete this hobby tag?")) {
+    try {
+      await apiFetch(`/api/v1/admin/hobbies/${hobbyId}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      renderAdminAboutTab();
+    } catch (err) {
+      showAdminToast("Error deleting hobby: " + err.message, "❌");
+    }
+  }
 };
 
-window.deleteAdminFact = function(idx) {
-  window.authorData.aboutData.funFacts.splice(idx, 1);
-  saveLocalData();
-  renderAdminAboutTab();
+window.deleteAdminFact = async function(idx) {
+  const fact = window.authorData.aboutData.funFacts[idx];
+  const factId = (typeof fact === 'object') ? fact.id : null;
+  if (factId && confirm("Delete this fun fact?")) {
+    try {
+      await apiFetch(`/api/v1/admin/fun-facts/${factId}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      renderAdminAboutTab();
+    } catch (err) {
+      showAdminToast("Error deleting fun fact: " + err.message, "❌");
+    }
+  }
 };
 
 // ==========================================================================
@@ -960,8 +1029,20 @@ function renderAdminBooksTab() {
             <input type="url" id="book-pinterest" class="admin-form-input" placeholder="https://pinterest.com/..." />
           </div>
           <div class="admin-form-group">
-            <label for="book-art-placeholder">Character Art Studio Note</label>
-            <input type="text" id="book-art-placeholder" class="admin-form-input" placeholder="e.g. A cozy ink-wash sketch of the bookstore..." />
+            <label for="book-art-placeholder">Character Art Studio Section Title / Note</label>
+            <input type="text" id="book-art-placeholder" class="admin-form-input" placeholder="e.g. Character Art Studio" />
+          </div>
+        </div>
+
+        <div class="admin-form-grid-2">
+          <div class="admin-form-group">
+            <label for="book-art-image">Character Art Image URL or Path (Optional)</label>
+            <input type="text" id="book-art-image" class="admin-form-input" placeholder="e.g. assets/character-art.jpg or uploads/..." />
+            <span class="admin-form-hint">If an image is set here, the "Character Art Studio" section will render on the website. If empty, the section stays hidden!</span>
+          </div>
+          <div class="admin-form-group">
+            <label for="book-art-caption">Character Art Caption / Description</label>
+            <input type="text" id="book-art-caption" class="admin-form-input" placeholder="e.g. Original artwork sketch by D. Ackerman" />
           </div>
         </div>
 
@@ -1030,13 +1111,22 @@ function renderAdminBooksTab() {
     colorText.addEventListener('input', () => { picker.value = colorText.value; });
   }
 
-  document.getElementById('bookshelf-header-form').addEventListener('submit', (e) => {
+  document.getElementById('bookshelf-header-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!window.authorData.bookshelfConfig) window.authorData.bookshelfConfig = {};
-    window.authorData.bookshelfConfig.pageTitle = document.getElementById('bookshelf-title').value.trim();
-    window.authorData.bookshelfConfig.pageSubtitle = document.getElementById('bookshelf-sub').value.trim();
-    saveLocalData();
-    showAdminToast("Bookshelf header updated!");
+    const pageTitle = document.getElementById('bookshelf-title').value.trim();
+    const pageSubtitle = document.getElementById('bookshelf-sub').value.trim();
+
+    try {
+      await apiFetch('/api/v1/admin/bookshelf-config', {
+        method: 'PATCH',
+        body: { pageTitle, pageSubtitle }
+      });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Bookshelf header updated in Database! ✨");
+    } catch (err) {
+      showAdminToast("Error updating Bookshelf header: " + err.message, "❌");
+    }
   });
 
   document.getElementById('book-add-new-btn').addEventListener('click', () => {
@@ -1092,6 +1182,8 @@ function openBookEditor(bookId = null) {
       document.getElementById('book-cover-image').value = book.coverImage || '';
       document.getElementById('book-pinterest').value = book.pinterestMoodboard || '';
       document.getElementById('book-art-placeholder').value = book.characterArtPlaceholder || '';
+      document.getElementById('book-art-image').value = book.characterArtImage || '';
+      document.getElementById('book-art-caption').value = book.characterArtCaption || '';
       document.getElementById('book-notes').value = book.authorNotes || '';
 
       if (book.characters) {
@@ -1190,18 +1282,20 @@ function addPurchaseLinkRow(store = '', url = '', disabled = false) {
   container.appendChild(div);
 }
 
-function saveBookForm() {
+async function saveBookForm() {
   const title = document.getElementById('book-title').value.trim();
-  const id = editingBookId || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const existingBook = editingBookId ? window.authorData.booksData.find(b => b.id === editingBookId) : null;
+  const slug = existingBook ? existingBook.slug : title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   const genre = document.getElementById('book-genre').value.trim();
   const tagline = document.getElementById('book-tagline').value.trim();
   const synopsis = document.getElementById('book-synopsis').value.trim();
-  const tropes = document.getElementById('book-tropes').value.split(',').map(t => t.trim()).filter(t => t.length > 0);
   const coverColor = document.getElementById('book-cover-color').value.trim() || '#aa7f66';
   const coverDoodle = document.getElementById('book-cover-doodle').value;
   const coverImage = document.getElementById('book-cover-image').value.trim() || null;
-  const pinterestMoodboard = document.getElementById('book-pinterest').value.trim();
-  const characterArtPlaceholder = document.getElementById('book-art-placeholder').value.trim() || "Character Art Portrait";
+  const pinterestMoodboard = document.getElementById('book-pinterest').value.trim() || null;
+  const characterArtPlaceholder = document.getElementById('book-art-placeholder').value.trim() || null;
+  const characterArtImage = document.getElementById('book-art-image').value.trim() || null;
+  const characterArtCaption = document.getElementById('book-art-caption').value.trim() || null;
   const authorNotes = document.getElementById('book-notes').value.trim();
 
   const charRows = document.querySelectorAll('.character-row');
@@ -1224,51 +1318,54 @@ function saveBookForm() {
     disabled: row.querySelector('.store-disabled-input').checked
   }));
 
-  const bookData = {
-    id,
+  const payload = {
+    slug,
     title,
-    coverImage,
     genre,
     tagline,
     synopsis,
-    tropes,
-    characters,
-    characterArtPlaceholder,
-    pinterestMoodboard,
-    playlist,
-    purchaseLinks,
-    authorNotes,
     coverColor,
-    coverDoodle
+    coverDoodle,
+    coverImage,
+    pinterestMoodboard,
+    characterArtPlaceholder,
+    characterArtImage,
+    characterArtCaption,
+    authorNotes,
+    characters,
+    playlist,
+    purchaseLinks
   };
 
-  if (!window.authorData.booksData) window.authorData.booksData = [];
-
-  if (editingBookId) {
-    const idx = window.authorData.booksData.findIndex(b => b.id === editingBookId);
-    if (idx !== -1) {
-      window.authorData.booksData[idx] = bookData;
-    }
-  } else {
-    window.authorData.booksData.push(bookData);
+  try {
+    const url = editingBookId ? `/api/v1/admin/books/${editingBookId}` : '/api/v1/admin/books';
+    const method = editingBookId ? 'PATCH' : 'POST';
+    await apiFetch(url, { method, body: payload });
+    const res = await fetch('/api/v1/site');
+    if (res.ok) window.authorData = await res.json();
+    showAdminToast(`Book "${title}" saved to Database! ✨`);
+    closeBookEditor();
+    renderAdminBooksTab();
+  } catch (err) {
+    showAdminToast("Error saving book: " + err.message, "❌");
   }
-
-  saveLocalData();
-  showAdminToast(`Book "${title}" saved successfully!`);
-  closeBookEditor();
-  renderAdminBooksTab();
 }
 
 window.editAdminBook = function (bookId) {
   openBookEditor(bookId);
 };
 
-window.deleteAdminBook = function (bookId) {
-  if (confirm("Are you sure you want to delete this book record? This will also remove character files and playlists.")) {
-    window.authorData.booksData = window.authorData.booksData.filter(b => b.id !== bookId);
-    saveLocalData();
-    showAdminToast("Book deleted from ledger.");
-    renderAdminBooksTab();
+window.deleteAdminBook = async function (bookId) {
+  if (confirm("Are you sure you want to delete this book record?")) {
+    try {
+      await apiFetch(`/api/v1/admin/books/${bookId}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Book deleted from Database.");
+      renderAdminBooksTab();
+    } catch (err) {
+      showAdminToast("Error deleting book: " + err.message, "❌");
+    }
   }
 };
 
@@ -1517,27 +1614,29 @@ function renderAdminDeskTab() {
     });
   }
 
-  document.getElementById('project-editor-form').addEventListener('submit', (e) => {
+  document.getElementById('project-editor-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const title = document.getElementById('proj-title').value.trim();
     const status = document.getElementById('proj-status').value.trim();
-    const progress = parseInt(slider.value);
+    const progress = parseInt(slider.value) || 0;
     const wordCount = document.getElementById('proj-words').value.trim();
     const synopsis = document.getElementById('proj-synopsis').value.trim();
     const projData = { title, status, progress, wordCount, synopsis };
 
-    if (!window.authorData.deskData.projects) window.authorData.deskData.projects = [];
+    const p = (editingProjectIdx !== null) ? window.authorData.deskData.projects[editingProjectIdx] : null;
 
-    if (editingProjectIdx !== null) {
-      window.authorData.deskData.projects[editingProjectIdx] = projData;
-    } else {
-      window.authorData.deskData.projects.push(projData);
+    try {
+      const url = (p && p.id) ? `/api/v1/admin/writing-projects/${p.id}` : '/api/v1/admin/writing-projects';
+      const method = (p && p.id) ? 'PATCH' : 'POST';
+      await apiFetch(url, { method, body: projData });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("WIP Project saved to Database! ✨");
+      window.closeProjectEditor();
+      renderAdminDeskTab();
+    } catch (err) {
+      showAdminToast("Error saving project: " + err.message, "❌");
     }
-
-    saveLocalData();
-    showAdminToast("WIP Project saved!");
-    window.closeProjectEditor();
-    renderAdminDeskTab();
   });
 
   document.getElementById('update-editor-form').addEventListener('submit', (e) => {
@@ -1550,24 +1649,24 @@ function renderAdminDeskTab() {
     saveSnippetForm();
   });
 
-  document.getElementById('sneak-editor-form').addEventListener('submit', (e) => {
+  document.getElementById('sneak-editor-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const title = document.getElementById('sneak-title').value.trim();
     const desc = document.getElementById('sneak-desc').value.trim();
-    const sneakData = { title, desc };
+    const sp = (editingSneakIdx !== null) ? window.authorData.deskData.sneakPeeks[editingSneakIdx] : null;
 
-    if (!window.authorData.deskData.sneakPeeks) window.authorData.deskData.sneakPeeks = [];
-
-    if (editingSneakIdx !== null) {
-      window.authorData.deskData.sneakPeeks[editingSneakIdx] = sneakData;
-    } else {
-      window.authorData.deskData.sneakPeeks.push(sneakData);
+    try {
+      const url = (sp && sp.id) ? `/api/v1/admin/sneak-peeks/${sp.id}` : '/api/v1/admin/sneak-peeks';
+      const method = (sp && sp.id) ? 'PATCH' : 'POST';
+      await apiFetch(url, { method, body: { title, desc } });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Sneak Peek saved to Database! ✨");
+      window.closeSneakEditor();
+      renderAdminDeskTab();
+    } catch (err) {
+      showAdminToast("Error saving sneak peek: " + err.message, "❌");
     }
-
-    saveLocalData();
-    showAdminToast("Sneak Peek saved!");
-    window.closeSneakEditor();
-    renderAdminDeskTab();
   });
 }
 
@@ -1579,7 +1678,7 @@ window.openProjectEditor = function(idx = null) {
   const title = document.getElementById('project-editor-title');
 
   form.reset();
-  if (idx !== null) {
+  if (idx !== null && window.authorData.deskData.projects[idx]) {
     title.textContent = "Edit WIP Project";
     const p = window.authorData.deskData.projects[idx];
     document.getElementById('proj-title').value = p.title || '';
@@ -1598,25 +1697,43 @@ window.openProjectEditor = function(idx = null) {
   card.scrollIntoView({ behavior: 'smooth' });
 };
 
+window.editAdminProject = function(idx) {
+  window.openProjectEditor(idx);
+};
+
 window.closeProjectEditor = function() {
   editingProjectIdx = null;
   document.getElementById('project-editor-card').style.display = 'none';
   document.getElementById('project-list-container').style.display = 'block';
 };
 
-window.setAdminPrimaryProject = function(idx) {
-  const item = window.authorData.deskData.projects.splice(idx, 1)[0];
-  window.authorData.deskData.projects.unshift(item);
-  saveLocalData();
-  showAdminToast(`Set "${item.title}" as primary WIP!`);
-  renderAdminDeskTab();
+window.setAdminPrimaryProject = async function(idx) {
+  const item = window.authorData.deskData.projects[idx];
+  if (item && item.id) {
+    try {
+      await apiFetch(`/api/v1/admin/writing-projects/${item.id}/set-primary`, { method: 'PATCH' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast(`Set "${item.title}" as primary WIP! ✨`);
+      renderAdminDeskTab();
+    } catch (err) {
+      showAdminToast("Error setting primary WIP: " + err.message, "❌");
+    }
+  }
 };
 
-window.deleteAdminProject = function(idx) {
-  if (confirm("Are you sure you want to delete this WIP project?")) {
-    window.authorData.deskData.projects.splice(idx, 1);
-    saveLocalData();
-    renderAdminDeskTab();
+window.deleteAdminProject = async function(idx) {
+  const item = window.authorData.deskData.projects[idx];
+  if (item && item.id && confirm("Are you sure you want to delete this WIP project?")) {
+    try {
+      await apiFetch(`/api/v1/admin/writing-projects/${item.id}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("WIP Project deleted from Database.");
+      renderAdminDeskTab();
+    } catch (err) {
+      showAdminToast("Error deleting WIP project: " + err.message, "❌");
+    }
   }
 };
 
@@ -1628,11 +1745,11 @@ window.openUpdateEditor = function (idx = null) {
   const form = document.getElementById('update-editor-form');
 
   form.reset();
-  if (idx !== null) {
+  if (idx !== null && window.authorData.deskData.updates[idx]) {
     title.textContent = "Edit Log Entry";
     const entry = window.authorData.deskData.updates[idx];
-    document.getElementById('upd-date').value = entry.date;
-    document.getElementById('upd-text').value = entry.text;
+    document.getElementById('upd-date').value = entry.date || '';
+    document.getElementById('upd-text').value = entry.text || '';
   } else {
     title.textContent = "Post New Log Entry";
   }
@@ -1642,34 +1759,47 @@ window.openUpdateEditor = function (idx = null) {
   card.scrollIntoView({ behavior: 'smooth' });
 };
 
+window.editAdminUpdate = function(idx) {
+  window.openUpdateEditor(idx);
+};
+
 window.closeUpdateEditor = function () {
   editingUpdateIdx = null;
   document.getElementById('update-editor-card').style.display = 'none';
   document.getElementById('update-list-container').style.display = 'block';
 };
 
-function saveUpdateForm() {
+async function saveUpdateForm() {
   const date = document.getElementById('upd-date').value.trim();
   const text = document.getElementById('upd-text').value.trim();
-  const entry = { date, text };
+  const entry = (editingUpdateIdx !== null) ? window.authorData.deskData.updates[editingUpdateIdx] : null;
 
-  if (editingUpdateIdx !== null) {
-    window.authorData.deskData.updates[editingUpdateIdx] = entry;
-  } else {
-    window.authorData.deskData.updates.unshift(entry);
+  try {
+    const url = (entry && entry.id) ? `/api/v1/admin/desk-logs/${entry.id}` : '/api/v1/admin/desk-logs';
+    const method = (entry && entry.id) ? 'PATCH' : 'POST';
+    await apiFetch(url, { method, body: { date, text } });
+    const res = await fetch('/api/v1/site');
+    if (res.ok) window.authorData = await res.json();
+    showAdminToast("Timeline log saved to Database! ✨");
+    window.closeUpdateEditor();
+    renderAdminDeskTab();
+  } catch (err) {
+    showAdminToast("Error saving log entry: " + err.message, "❌");
   }
-
-  saveLocalData();
-  showAdminToast("Timeline log posted!");
-  window.closeUpdateEditor();
-  renderAdminDeskTab();
 }
 
-window.deleteAdminUpdate = function (idx) {
-  if (confirm("Are you sure you want to delete this log entry?")) {
-    window.authorData.deskData.updates.splice(idx, 1);
-    saveLocalData();
-    renderAdminDeskTab();
+window.deleteAdminUpdate = async function (idx) {
+  const entry = window.authorData.deskData.updates[idx];
+  if (entry && entry.id && confirm("Are you sure you want to delete this log entry?")) {
+    try {
+      await apiFetch(`/api/v1/admin/desk-logs/${entry.id}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Log entry deleted from Database.");
+      renderAdminDeskTab();
+    } catch (err) {
+      showAdminToast("Error deleting log entry: " + err.message, "❌");
+    }
   }
 };
 
@@ -1681,11 +1811,11 @@ window.openSnippetEditor = function (idx = null) {
   const form = document.getElementById('snippet-editor-form');
 
   form.reset();
-  if (idx !== null) {
+  if (idx !== null && window.authorData.deskData.snippets[idx]) {
     title.textContent = "Edit Excerpt";
     const entry = window.authorData.deskData.snippets[idx];
-    document.getElementById('snip-source').value = entry.source;
-    document.getElementById('snip-text').value = entry.text;
+    document.getElementById('snip-source').value = entry.source || '';
+    document.getElementById('snip-text').value = entry.text || '';
   } else {
     title.textContent = "Pin New Excerpt";
   }
@@ -1695,34 +1825,47 @@ window.openSnippetEditor = function (idx = null) {
   card.scrollIntoView({ behavior: 'smooth' });
 };
 
+window.editAdminSnippet = function(idx) {
+  window.openSnippetEditor(idx);
+};
+
 window.closeSnippetEditor = function () {
   editingSnippetIdx = null;
   document.getElementById('snippet-editor-card').style.display = 'none';
   document.getElementById('snippet-list-container').style.display = 'block';
 };
 
-function saveSnippetForm() {
+async function saveSnippetForm() {
   const source = document.getElementById('snip-source').value.trim();
   const text = document.getElementById('snip-text').value.trim();
-  const entry = { source, text };
+  const snip = (editingSnippetIdx !== null) ? window.authorData.deskData.snippets[editingSnippetIdx] : null;
 
-  if (editingSnippetIdx !== null) {
-    window.authorData.deskData.snippets[editingSnippetIdx] = entry;
-  } else {
-    window.authorData.deskData.snippets.push(entry);
+  try {
+    const url = (snip && snip.id) ? `/api/v1/admin/snippets/${snip.id}` : '/api/v1/admin/snippets';
+    const method = (snip && snip.id) ? 'PATCH' : 'POST';
+    await apiFetch(url, { method, body: { source, text } });
+    const res = await fetch('/api/v1/site');
+    if (res.ok) window.authorData = await res.json();
+    showAdminToast("Manuscript snippet saved to Database! ✨");
+    window.closeSnippetEditor();
+    renderAdminDeskTab();
+  } catch (err) {
+    showAdminToast("Error saving snippet: " + err.message, "❌");
   }
-
-  saveLocalData();
-  showAdminToast("Excerpt pinned successfully!");
-  window.closeSnippetEditor();
-  renderAdminDeskTab();
 }
 
-window.deleteAdminSnippet = function (idx) {
-  if (confirm("Are you sure you want to delete this manuscript snippet?")) {
-    window.authorData.deskData.snippets.splice(idx, 1);
-    saveLocalData();
-    renderAdminDeskTab();
+window.deleteAdminSnippet = async function (idx) {
+  const snip = window.authorData.deskData.snippets[idx];
+  if (snip && snip.id && confirm("Are you sure you want to delete this manuscript snippet?")) {
+    try {
+      await apiFetch(`/api/v1/admin/snippets/${snip.id}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Manuscript snippet deleted from Database.");
+      renderAdminDeskTab();
+    } catch (err) {
+      showAdminToast("Error deleting snippet: " + err.message, "❌");
+    }
   }
 };
 
@@ -1734,7 +1877,7 @@ window.openSneakEditor = function(idx = null) {
   const form = document.getElementById('sneak-editor-form');
 
   form.reset();
-  if (idx !== null) {
+  if (idx !== null && window.authorData.deskData.sneakPeeks[idx]) {
     title.textContent = "Edit Sneak Peek";
     const sp = window.authorData.deskData.sneakPeeks[idx];
     document.getElementById('sneak-title').value = sp.title || '';
@@ -1748,17 +1891,28 @@ window.openSneakEditor = function(idx = null) {
   card.scrollIntoView({ behavior: 'smooth' });
 };
 
+window.editAdminSneak = function(idx) {
+  window.openSneakEditor(idx);
+};
+
 window.closeSneakEditor = function() {
   editingSneakIdx = null;
   document.getElementById('sneak-editor-card').style.display = 'none';
   document.getElementById('sneak-list-container').style.display = 'block';
 };
 
-window.deleteAdminSneak = function(idx) {
-  if (confirm("Are you sure you want to delete this sneak peek?")) {
-    window.authorData.deskData.sneakPeeks.splice(idx, 1);
-    saveLocalData();
-    renderAdminDeskTab();
+window.deleteAdminSneak = async function(idx) {
+  const sp = window.authorData.deskData.sneakPeeks[idx];
+  if (sp && sp.id && confirm("Are you sure you want to delete this sneak peek?")) {
+    try {
+      await apiFetch(`/api/v1/admin/sneak-peeks/${sp.id}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Sneak Peek deleted from Database.");
+      renderAdminDeskTab();
+    } catch (err) {
+      showAdminToast("Error deleting sneak peek: " + err.message, "❌");
+    }
   }
 };
 
