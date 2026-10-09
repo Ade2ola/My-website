@@ -70,16 +70,15 @@ const DOM = {
 };
 
 // --- Initializer ---
-document.addEventListener('DOMContentLoaded', () => {
-  // Sync state with localStorage to load custom edits saved in the Owner Ledger
-  let localData = localStorage.getItem('dessy_archive_data');
-  if (localData) {
-    try {
-      const parsed = JSON.parse(localData);
-      window.authorData = deepMerge(window.authorData, parsed);
-    } catch (e) {
-      console.error("Failed to parse local storage data, using defaults", e);
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('/api/v1/site');
+    if (res.ok) {
+      const dbData = await res.json();
+      window.authorData = deepMerge(window.authorData, dbData);
     }
+  } catch (e) {
+    console.warn("API server unreachable, using offline defaults from data.js", e);
   }
 
   syncGlobalDOM();

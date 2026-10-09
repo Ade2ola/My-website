@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  mywebsite-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mywebsite-app
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://mywebsite_user:${POSTGRES_PASSWORD:-SuperSecureDBPassword123!}@mywebsite-db:5432/mywebsite_db?schema=public
+      - SESSION_SECRET=${SESSION_SECRET:-super_secret_session_key_dessy_ackerman_archive_2026}
+      - CSRF_SECRET=${CSRF_SECRET:-super_secret_csrf_key_dessy_ackerman_archive_2026}
+      - APP_BASE_URL=${APP_BASE_URL:-https://dessyackerman.com}
+      - UPLOAD_DIR=/app/uploads
+      - TRUST_PROXY=true
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads-data:/app/uploads
+    depends_on:
+      mywebsite-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          memory: 128M
+    networks:
+      - mywebsite-net
+
+  mywebsite-db:
+    image: postgres:16-alpine
+    container_name: mywebsite-db
+    restart: always
+    environment:
+      - POSTGRES_USER=mywebsite_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-SuperSecureDBPassword123!}
+      - POSTGRES_DB=mywebsite_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mywebsite_user -d mywebsite_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          memory: 128M
+    networks:
+      - mywebsite-net
+
+volumes:
+  pg-data:
+  uploads-data:
+
+networks:
+  mywebsite-net:
+    driver: bridge

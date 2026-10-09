@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  passwordHash String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  sessions     AdminSession[]
+  auditLogs    AuditLog[]
+}
+
+model AdminSession {
+  id        String    @id @default(uuid())
+  sid       String    @unique
+  userId    String
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime  @default(now())
+}
+
+model SiteSetting {
+  id             String   @id @default(uuid())
+  siteTitle      String   @default("Dessy Ackerman | Storyteller & Dreamer")
+  authorName     String   @default("Dessy Ackerman")
+  authorSubtitle String   @default("Storyteller & Dreamer")
+  deskStickyNote String   @default("Remember: The magic is in the rewriting.")
+  musicBoxLabel  String   @default("Cozy Music Box")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model SocialLink {
+  id           String   @id @default(uuid())
+  name         String
+  icon         String   @default("📌")
+  url          String
+  active       Boolean  @default(true)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model HomeSetting {
+  id               String   @id @default(uuid())
+  welcomeGreeting  String   @default("Hello dear reader,")
+  heroTitle        String   @default("Welcome to Dessy's Archive")
+  heroTagline      String   @default("Storyteller. Dreamer. Avid coffee lover. Writing secret worlds from the cozy corners of the universe.")
+  aboutCardTitle   String   @default("About the Author")
+  aboutCardQuote   String   @default("Stories are houses built out of whispers.")
+  aboutCardSummary String   @db.Text
+  aboutCardClosing String   @db.Text
+  featuredBookId   String?
+  featuredBook     Book?    @relation("FeaturedBook", fields: [featuredBookId], references: [id], onDelete: SetNull)
+  bannerTitlePrefix String  @default("Currently Drafting:")
+  bannerButtonText String   @default("Visit Writing Desk →")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model AboutSetting {
+  id            String   @id @default(uuid())
+  pageTitle     String   @default("About Dessy")
+  pageSubtitle  String   @default("Writing secret stories from behind a mask of parchment and ink.")
+  tagline       String   @default("Storyteller. Dreamer. Avid coffee lover.")
+  whyIWrite     String   @db.Text
+  anonLocation  String   @default("My favorite local pastries shop, surrounded by the smell of warm ovens.")
+  anonCompanion String   @default("A plushie of Rafayel from Love and Deepspace .")
+  anonBeverage  String   @default("Coffee (a cup is always next to my keyboard).")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Trope {
+  id          String   @id @default(uuid())
+  name        String
+  description String   @db.Text
+  displayOrder Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Genre {
+  id           String   @id @default(uuid())
+  name         String
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Hobby {
+  id           String   @id @default(uuid())
+  name         String
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model FunFact {
+  id           String   @id @default(uuid())
+  text         String   @db.Text
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model BookshelfConfig {
+  id           String   @id @default(uuid())
+  pageTitle    String   @default("The Bookshelf")
+  pageSubtitle String   @default("Step inside stories written in ink, magic, and shadow. Click on any volume to open its scrapbook journal.")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Book {
+  id                      String              @id @default(uuid())
+  slug                    String              @unique
+  title                   String
+  genre                   String
+  tagline                 String
+  synopsis                String              @db.Text
+  coverImage              String?
+  coverColor              String              @default("#aa7f66")
+  coverDoodle             String              @default("quill")
+  characterArtImage       String?
+  characterArtCaption     String?             @db.Text
+  characterArtPlaceholder String?             @db.Text
+  pinterestMoodboard      String?
+  authorNotes             String              @db.Text
+  published               Boolean             @default(true)
+  displayOrder            Int                 @default(0)
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  characters              BookCharacter[]
+  playlist                BookPlaylistTrack[]
+  purchaseLinks           BookPurchaseLink[]
+  featuredInHome          HomeSetting[]       @relation("FeaturedBook")
+}
+
+model BookCharacter {
+  id           String   @id @default(uuid())
+  bookId       String
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  name         String
+  role         String
+  desc         String   @db.Text
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model BookPlaylistTrack {
+  id          String   @id @default(uuid())
+  bookId      String
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  title       String
+  artist      String
+  trackNumber Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BookPurchaseLink {
+  id           String   @id @default(uuid())
+  bookId       String
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  store        String
+  url          String
+  disabled     Boolean  @default(false)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model WritingProject {
+  id           String   @id @default(uuid())
+  title        String
+  status       String
+  progress     Int      @default(0)
+  wordCount    String
+  synopsis     String   @db.Text
+  displayOrder Int      @default(0)
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model DeskLog {
+  id           String   @id @default(uuid())
+  date         String
+  text         String   @db.Text
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ManuscriptSnippet {
+  id           String   @id @default(uuid())
+  source       String
+  text         String   @db.Text
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model DeskQuote {
+  id           String   @id @default(uuid())
+  text         String   @db.Text
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SneakPeek {
+  id           String   @id @default(uuid())
+  title        String
+  desc         String   @db.Text
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model MascotConfig {
+  id            String   @id @default(uuid())
+  name          String   @default("Poe the Desk Cat")
+  initialSpeech String   @default("Meow? (Click me!)")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model MascotQuote {
+  id           String   @id @default(uuid())
+  text         String   @db.Text
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model StoreProduct {
+  id           String   @id @default(uuid())
+  title        String
+  description  String   @db.Text
+  price        String
+  status       String   @default("coming-soon")
+  link         String   @default("#")
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model MediaAsset {
+  id           String   @id @default(uuid())
+  filename     String   @unique
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  createdAt    DateTime @default(now())
+}
+
+model AuditLog {
+  id        String     @id @default(uuid())
+  userId    String?
+  user      AdminUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  details   String?    @db.Text
+  createdAt DateTime   @default(now())
+}

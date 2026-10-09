@@ -1,0 +1,35 @@
+{
+  "name": "my-website-server",
+  "version": "1.0.0",
+  "description": "Production CMS REST API backend for Dessy Ackerman's author website",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "node prisma/seed.js",
+    "test": "jest --runInBand --detectOpenHandles"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.10.0",
+    "argon2": "^0.40.0",
+    "connect-pg-simple": "^9.0.1",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.1.5",
+    "express-session": "^1.18.0",
+    "file-type": "^16.5.4",
+    "helmet": "^7.1.0",
+    "multer": "^1.4.5-lts.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.0",
+    "prisma": "^5.10.0",
+    "supertest": "^6.3.4"
+  }
+}

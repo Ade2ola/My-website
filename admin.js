@@ -127,14 +127,57 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+// --- Global State ---
+let currentCsrfToken = '';
+
+async function apiFetch(url, options = {}) {
+  options.credentials = 'include';
+  options.headers = options.headers || {};
+  if (currentCsrfToken && !['GET', 'HEAD'].includes((options.method || 'GET').toUpperCase())) {
+    options.headers['X-CSRF-Token'] = currentCsrfToken;
+  }
+  if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+    options.headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(options.body);
+  }
+
+  const response = await fetch(url, options);
+  if (response.status === 401 && !url.includes('/api/v1/auth/login') && !url.includes('/api/v1/auth/session')) {
+    sessionStorage.removeItem('admin_session');
+    checkAuth();
+    throw new Error('Unauthorized');
+  }
+  return response;
+}
+
 // --- Auth Gate ---
-function checkAuth() {
-  const isAuthenticated = sessionStorage.getItem('admin_session') === 'true';
-  if (isAuthenticated) {
-    if (adminDOM.topBar) adminDOM.topBar.style.display = 'flex';
-    renderAdminDashboard();
-  } else {
-    if (adminDOM.topBar) adminDOM.topBar.style.display = 'none';
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/v1/auth/session', { credentials: 'include' });
+    const data = await res.json();
+    if (data.authenticated) {
+      currentCsrfToken = data.csrfToken || '';
+      sessionStorage.setItem('admin_session', 'true');
+      if (adminDOM.topBar) adminDOM.topBar.style.display = 'flex';
+
+      try {
+        const siteRes = await fetch('/api/v1/site');
+        if (siteRes.ok) {
+          const dbData = await siteRes.json();
+          window.authorData = deepMerge(window.authorData, dbData);
+        }
+      } catch (e) {
+        console.warn("Could not sync live DB site data", e);
+      }
+
+      renderAdminDashboard();
+    } else {
+      sessionStorage.removeItem('admin_session');
+      if (adminDOM.topBar) adminDOM.topBar.style.display = 'none';
+      renderPasscodeGate();
+    }
+  } catch (e) {
+    console.warn("Auth check unreachable, falling back to passcode gate", e);
     renderPasscodeGate();
   }
 }
@@ -144,13 +187,16 @@ function renderPasscodeGate() {
     <div class="admin-gate-page" style="padding: 2rem 0;">
       <div class="lockbox-diary">
         <h2>Owner Ledger</h2>
-        <p>This private studio is locked. Please enter your passcode to access and customize your archive.</p>
+        <p>This private studio is locked. Please enter your email and password to access your archive.</p>
         <form class="lockbox-form" id="admin-login-form">
+          <div class="lockbox-input-group" style="margin-bottom: 0.8rem;">
+            <input type="email" class="lockbox-input" id="admin-email-field" placeholder="Admin Email" value="admin@dessyackerman.com" required autocomplete="username" />
+          </div>
           <div class="lockbox-input-group">
-            <input type="password" class="lockbox-input" id="admin-passcode-field" placeholder="Enter Passcode (default: dessy123)" required autocomplete="current-password" />
+            <input type="password" class="lockbox-input" id="admin-passcode-field" placeholder="Password (default: dessy123)" required autocomplete="current-password" />
           </div>
           <button type="submit" class="lockbox-btn-unlock">Unlock Ledger 🗝️</button>
-          <div class="lockbox-error-msg" id="admin-login-error">Incorrect passcode. Please try again.</div>
+          <div class="lockbox-error-msg" id="admin-login-error">Incorrect credentials. Please try again.</div>
         </form>
         <div style="margin-top: 1.5rem; text-align: center;">
           <a href="index.html" style="color: var(--color-ink-light); text-decoration: none; font-size: 0.95rem;">← Return to main website</a>
@@ -160,23 +206,39 @@ function renderPasscodeGate() {
   `;
 
   const form = document.getElementById('admin-login-form');
+  const emailField = document.getElementById('admin-email-field');
   const passcodeField = document.getElementById('admin-passcode-field');
   const errorMsg = document.getElementById('admin-login-error');
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const inputVal = passcodeField.value.trim();
-    const correctPasscode = (window.authorData.adminConfig && window.authorData.adminConfig.passcode) || "dessy123";
+    const email = emailField.value.trim();
+    const password = passcodeField.value.trim();
 
-    if (inputVal === correctPasscode) {
-      sessionStorage.setItem('admin_session', 'true');
-      errorMsg.style.display = 'none';
-      if (adminDOM.topBar) adminDOM.topBar.style.display = 'flex';
-      renderAdminDashboard();
-    } else {
+    try {
+      const res = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        currentCsrfToken = data.csrfToken || '';
+        sessionStorage.setItem('admin_session', 'true');
+        errorMsg.style.display = 'none';
+        if (adminDOM.topBar) adminDOM.topBar.style.display = 'flex';
+        renderAdminDashboard();
+      } else {
+        errorMsg.textContent = data.message || 'Incorrect credentials.';
+        errorMsg.style.display = 'block';
+        passcodeField.value = '';
+        passcodeField.focus();
+      }
+    } catch (err) {
+      errorMsg.textContent = 'Server communication error.';
       errorMsg.style.display = 'block';
-      passcodeField.value = '';
-      passcodeField.focus();
     }
   });
 }
@@ -220,7 +282,10 @@ function renderAdminDashboard() {
 
   // Bind Header Lock button
   if (adminDOM.headerLockBtn) {
-    adminDOM.headerLockBtn.onclick = () => {
+    adminDOM.headerLockBtn.onclick = async () => {
+      try {
+        await apiFetch('/api/v1/auth/logout', { method: 'POST' });
+      } catch (e) {}
       sessionStorage.removeItem('admin_session');
       checkAuth();
     };
@@ -288,7 +353,7 @@ function renderAdminHomeTab() {
   const home = data.homeData || {};
   const books = data.booksData || [];
 
-  const booksOptions = books.map(b => 
+  const booksOptions = `<option value="">-- No Featured Book --</option>` + books.map(b => 
     `<option value="${escapeHtml(b.id)}" ${home.featuredBookId === b.id ? 'selected' : ''}>${escapeHtml(b.title)}</option>`
   ).join('');
 
@@ -428,74 +493,105 @@ function renderAdminHomeTab() {
   `;
 
   // Bind Home Hero Form Submit
-  document.getElementById('admin-home-hero-form').addEventListener('submit', (e) => {
+  document.getElementById('admin-home-hero-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!window.authorData.siteConfig) window.authorData.siteConfig = {};
-    if (!window.authorData.homeData) window.authorData.homeData = {};
+    const siteTitle = document.getElementById('site-browser-title').value.trim();
+    const welcomeGreeting = document.getElementById('home-welcome-greeting').value.trim();
+    const heroTitle = document.getElementById('home-hero-title').value.trim();
+    const rawFeaturedBookId = document.getElementById('home-featured-book-select').value;
+    const featuredBookId = rawFeaturedBookId ? rawFeaturedBookId : null;
+    const heroTagline = document.getElementById('home-hero-tagline').value.trim();
+    const aboutCardTitle = document.getElementById('home-about-title').value.trim();
+    const aboutCardQuote = document.getElementById('home-about-quote').value.trim();
+    const aboutCardSummary = document.getElementById('home-about-summary').value.trim();
+    const aboutCardClosing = document.getElementById('home-about-closing').value.trim();
+    const bannerTitlePrefix = document.getElementById('home-banner-prefix').value.trim();
+    const bannerButtonText = document.getElementById('home-banner-btn-text').value.trim();
 
-    window.authorData.siteConfig.siteTitle = document.getElementById('site-browser-title').value.trim();
-    window.authorData.homeData.welcomeGreeting = document.getElementById('home-welcome-greeting').value.trim();
-    window.authorData.homeData.heroTitle = document.getElementById('home-hero-title').value.trim();
-    window.authorData.homeData.featuredBookId = document.getElementById('home-featured-book-select').value;
-    window.authorData.homeData.heroTagline = document.getElementById('home-hero-tagline').value.trim();
-    window.authorData.homeData.aboutCardTitle = document.getElementById('home-about-title').value.trim();
-    window.authorData.homeData.aboutCardQuote = document.getElementById('home-about-quote').value.trim();
-    window.authorData.homeData.aboutCardSummary = document.getElementById('home-about-summary').value.trim();
-    window.authorData.homeData.aboutCardClosing = document.getElementById('home-about-closing').value.trim();
-    window.authorData.homeData.bannerTitlePrefix = document.getElementById('home-banner-prefix').value.trim();
-    window.authorData.homeData.bannerButtonText = document.getElementById('home-banner-btn-text').value.trim();
-
-    saveLocalData();
-    showAdminToast("Home Page settings updated successfully!");
+    try {
+      await apiFetch('/api/v1/admin/settings', { method: 'PATCH', body: { siteTitle } });
+      await apiFetch('/api/v1/admin/home', {
+        method: 'PATCH',
+        body: {
+          welcomeGreeting, heroTitle, heroTagline, aboutCardTitle,
+          aboutCardQuote, aboutCardSummary, aboutCardClosing,
+          featuredBookId, bannerTitlePrefix, bannerButtonText
+        }
+      });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Home Page settings saved to Database! ✨");
+    } catch (err) {
+      showAdminToast("Error saving Home settings: " + err.message, "❌");
+    }
   });
 
   // Bind Desk Decor Form Submit
-  document.getElementById('admin-desk-decor-form').addEventListener('submit', (e) => {
+  document.getElementById('admin-desk-decor-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!window.authorData.siteConfig) window.authorData.siteConfig = {};
-    window.authorData.siteConfig.deskStickyNote = document.getElementById('desk-sticky-note-edit').value.trim();
-    window.authorData.siteConfig.musicBoxLabel = document.getElementById('music-box-label-edit').value.trim();
+    const deskStickyNote = document.getElementById('desk-sticky-note-edit').value.trim();
+    const musicBoxLabel = document.getElementById('music-box-label-edit').value.trim();
 
-    saveLocalData();
-    showAdminToast("Desk decorations updated successfully!");
+    try {
+      await apiFetch('/api/v1/admin/settings', {
+        method: 'PATCH',
+        body: { deskStickyNote, musicBoxLabel }
+      });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast("Desk decorations updated in Database! ✨");
+    } catch (err) {
+      showAdminToast("Error updating desk decor: " + err.message, "❌");
+    }
   });
 
   // Bind Add Social Link
-  document.getElementById('admin-add-social-form').addEventListener('submit', (e) => {
+  document.getElementById('admin-add-social-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('new-social-name').value.trim();
     const icon = document.getElementById('new-social-icon').value.trim() || '📌';
     const url = document.getElementById('new-social-url').value.trim();
 
-    if (!window.authorData.siteConfig.socialLinks) window.authorData.siteConfig.socialLinks = [];
-    window.authorData.siteConfig.socialLinks.push({
-      id: name.toLowerCase().replace(/[^a-z0-9]/g, ''),
-      name,
-      icon,
-      url,
-      active: true
-    });
-
-    saveLocalData();
-    showAdminToast(`Added ${name} social stamp!`);
-    renderAdminHomeTab();
+    try {
+      await apiFetch('/api/v1/admin/social-links', {
+        method: 'POST',
+        body: { name, icon, url }
+      });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      showAdminToast(`Added ${name} social stamp to Database!`);
+      renderAdminHomeTab();
+    } catch (err) {
+      showAdminToast("Error adding social link: " + err.message, "❌");
+    }
   });
 }
 
-window.toggleAdminSocial = function(idx) {
+window.toggleAdminSocial = async function(idx) {
   const link = window.authorData.siteConfig.socialLinks[idx];
-  if (link) {
-    link.active = (link.active === false);
-    saveLocalData();
-    renderAdminHomeTab();
+  if (link && link.id) {
+    try {
+      await apiFetch(`/api/v1/admin/social-links/${link.id}/toggle`, { method: 'PATCH' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      renderAdminHomeTab();
+    } catch (err) {
+      showAdminToast("Error toggling social link: " + err.message, "❌");
+    }
   }
 };
 
-window.deleteAdminSocial = function(idx) {
-  if (confirm("Are you sure you want to remove this social link stamp?")) {
-    window.authorData.siteConfig.socialLinks.splice(idx, 1);
-    saveLocalData();
-    renderAdminHomeTab();
+window.deleteAdminSocial = async function(idx) {
+  const link = window.authorData.siteConfig.socialLinks[idx];
+  if (link && link.id && confirm("Are you sure you want to remove this social link stamp?")) {
+    try {
+      await apiFetch(`/api/v1/admin/social-links/${link.id}`, { method: 'DELETE' });
+      const res = await fetch('/api/v1/site');
+      if (res.ok) window.authorData = await res.json();
+      renderAdminHomeTab();
+    } catch (err) {
+      showAdminToast("Error deleting social link: " + err.message, "❌");
+    }
   }
 };
 
