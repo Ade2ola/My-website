@@ -403,5 +403,61 @@ describe('My-Website CMS API & Security Test Suite', () => {
     });
   });
 
+  describe('7. Media Upload Operations', () => {
+    let agent;
+    let csrfToken;
+
+    beforeAll(async () => {
+      agent = request.agent(app);
+      const loginRes = await agent
+        .post('/api/v1/auth/login')
+        .send({ email: 'admin@dessyackerman.com', password: 'dessy123' });
+      csrfToken = loginRes.body.csrfToken;
+    });
+
+    it('should upload an image successfully and return 201 with public URL', async () => {
+      const dummyPng = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64'
+      );
+
+      const res = await agent
+        .post('/api/v1/admin/uploads')
+        .set('X-CSRF-Token', csrfToken)
+        .attach('media', dummyPng, 'test-image.png');
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.url).toMatch(/^\/uploads\//);
+      expect(res.body.data.filename).toBeDefined();
+    });
+
+    it('should reject invalid file format with 400', async () => {
+      const dummyText = Buffer.from('console.log("hello")', 'utf-8');
+
+      const res = await agent
+        .post('/api/v1/admin/uploads')
+        .set('X-CSRF-Token', csrfToken)
+        .attach('media', dummyText, 'script.exe');
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toContain('Invalid file format');
+    });
+
+    it('should reject upload without CSRF token with 403', async () => {
+      const dummyPng = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64'
+      );
+
+      const res = await agent
+        .post('/api/v1/admin/uploads')
+        .attach('media', dummyPng, 'test-image.png');
+
+      expect(res.statusCode).toBe(403);
+    });
+  });
+
 });
 

@@ -10,6 +10,7 @@ server/node_modules/
 # Uploads directory contents (keep folder structure)
 uploads/*
 !uploads/.gitkeep
+server/uploads/
 
 # Build and coverage outputs
 dist/

@@ -65,9 +65,19 @@ This document summarizes the root causes, architectural changes, database update
   - Cleanly removed the "Store / Boutique" navigation link and tab panel from `admin.html` and `admin.js`.
   - Retained PostgreSQL `StoreProduct` schema and existing database records to prevent destructive migrations.
 
-### Task 10 & 11: General Reliability & Automated Testing
+### Task 10: Fix Media Upload Connection Reset (`NS_ERROR_NET_RESET`)
+- **Root Cause**:
+  1. `nodemon` in development watched the entire server directory without ignore rules. When uploaded files were saved into `uploads/` or `server/uploads/`, nodemon immediately detected the new file and restarted `server.js` mid-request, causing the active TCP connection to close abruptly (`NS_ERROR_NET_RESET`).
+  2. The target upload directory did not exist on fresh checkouts, causing unhandled filesystem errors during multer disk write streams.
+- **Fix**:
+  - Added `server/nodemon.json` to restrict nodemon file-watching specifically to `["src"]` and ignore `uploads/*` and `../uploads/*`.
+  - Added directory existence check with automatic `fs.mkdirSync(uploadDir, { recursive: true })` in `server/src/config/index.js`.
+  - Added `handleUpload` error wrapper middleware in `server/src/routes/admin.routes.js` to catch Multer errors and return clean HTTP 400 responses with descriptive messages.
+  - Reset file input values in `admin.js` upon completion to allow seamless re-upload of identical filenames.
+
+### Task 11: General Reliability & Automated Testing
 - Updated `server/src/utils/prisma.js` to ensure configuration and environment variables load before PrismaClient initialization.
-- Added comprehensive automated tests in `server/tests/api.test.js` covering Health, Auth, Writing Desk, Bookshelf (covers, character art, DB deletion), About CMS (genres, hobbies, fun facts), and Manuscript Snippets (`externalUrl`).
+- Added comprehensive automated tests in `server/tests/api.test.js` covering Health, Auth, Writing Desk, Bookshelf (covers, character art, DB deletion), About CMS (genres, hobbies, fun facts), Manuscript Snippets (`externalUrl`), and Media Upload Operations (18 passing automated tests).
 
 ---
 
@@ -76,6 +86,9 @@ This document summarizes the root causes, architectural changes, database update
 | File | Changes Made |
 | :--- | :--- |
 | `server/prisma/schema.prisma` | Added optional `externalUrl String?` to `ManuscriptSnippet` model. |
+| `server/src/config/index.js` | Auto-create `uploadDir` if it does not exist on disk on startup. |
+| `server/src/routes/admin.routes.js` | Added `handleUpload` middleware wrapper to handle multer errors gracefully. |
+| `server/nodemon.json` | Configured nodemon to watch only `src` and ignore uploads directory to prevent server restarts during upload. |
 | `server/src/validators/content.validator.js` | Updated `heroTitle` schema to allow empty string. |
 | `server/src/controllers/admin.controller.js` | Enhanced `updateBook` & `deleteBook` to lookup by ID or slug without collision; added `externalUrl` support to snippets. |
 | `server/src/controllers/public.controller.js` | Mapped `externalUrl` in site bundle response (`snippets`). |
@@ -83,7 +96,8 @@ This document summarizes the root causes, architectural changes, database update
 | `admin.js` | Fixed `[object Object]` rendering for About items; added cover/art image upload & preview; fixed book save/delete IDs and error handling; removed retired tabs; added `externalUrl` field. |
 | `admin.html` | Removed Sneak Peeks and Store tabs; repositioned Desk Logs in sidebar nav; added file inputs for book cover & character art; added `externalUrl` input to snippets form. |
 | `app.js` | Added interactive reading modal for Manuscript Snippets (`openSnippetModal`); added multi-image art support & dynamic auto-hiding for empty Character Art Studio sections. |
-| `server/tests/api.test.js` | Added 15 comprehensive automated unit & integration tests covering all CMS features. |
+| `server/tests/api.test.js` | Added 18 comprehensive automated unit & integration tests covering all CMS and upload features. |
+
 
 ---
 

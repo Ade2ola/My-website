@@ -34,6 +34,19 @@ const upload = multer({
   limits: { fileSize: config.maxUploadSizeMb * 1024 * 1024 }
 });
 
+const handleUpload = (req, res, next) => {
+  upload.single('media')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        return res.status(400).json({ success: false, message: `Upload error: ${err.message}` });
+      }
+      return res.status(400).json({ success: false, message: err.message || 'File upload failed' });
+    }
+    next();
+  });
+};
+
+
 // Protect all admin routes
 router.use(requireAdmin);
 router.use(verifyCsrf);
@@ -97,7 +110,7 @@ router.patch('/products/:id', adminController.updateProduct);
 router.delete('/products/:id', adminController.deleteProduct);
 
 // 8. Media Assets
-router.post('/uploads', upload.single('media'), adminController.uploadMedia);
+router.post('/uploads', handleUpload, adminController.uploadMedia);
 router.get('/media', adminController.getMediaList);
 router.delete('/media/:id', adminController.deleteMedia);
 

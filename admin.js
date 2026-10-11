@@ -1243,6 +1243,8 @@ function renderAdminBooksTab() {
         showAdminToast("Cover image uploaded! ✨");
       } catch (err) {
         showAdminToast("Cover upload failed: " + err.message, "❌");
+      } finally {
+        e.target.value = '';
       }
     });
   }
@@ -1281,6 +1283,8 @@ function renderAdminBooksTab() {
         showAdminToast("Character art uploaded! ✨");
       } catch (err) {
         showAdminToast("Character art upload failed: " + err.message, "❌");
+      } finally {
+        e.target.value = '';
       }
     });
   }
