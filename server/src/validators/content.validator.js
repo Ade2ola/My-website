@@ -15,7 +15,7 @@ const siteSettingsSchema = z.object({
 
 const homeSettingsSchema = z.object({
   welcomeGreeting: z.string().max(100).optional(),
-  heroTitle: z.string().min(1).max(150).optional(),
+  heroTitle: z.string().max(150).optional(),
   heroTagline: z.string().max(300).optional(),
   aboutCardTitle: z.string().min(1).max(100).optional(),
   aboutCardQuote: z.string().max(250).optional(),

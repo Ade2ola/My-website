@@ -1,62 +1,122 @@
-# CMS Fix Audit Report — Dessy Ackerman Archive
+# CMS Fix Audit & Implementation Report
 
-This document provides a comprehensive audit of the CMS persistence, API routes, database models, and public rendering data flow across the application.
-
----
-
-## 1. Audit Overview & Architecture Baseline
-
-* **Frontend**: Vanilla HTML5, CSS3, JavaScript (`app.js`, `admin.js`, `styles.css`).
-* **Backend**: Node.js, Express, Prisma ORM, PostgreSQL database (`mywebsite_db`).
-* **Security & Auth**: Server-side sessions (Argon2id password hashing, HTTP-only session cookies), double-submit CSRF token validation (`X-CSRF-Token`).
-* **API Base**: `/api/v1` (`/api/v1/auth`, `/api/v1/admin`, `/api/v1/site`).
+## Overview
+This document summarizes the root causes, architectural changes, database updates, API enhancements, frontend modifications, and test results for the bug fixes and administrative dashboard improvements made to `My-website`.
 
 ---
 
-## 2. Comprehensive Broken Feature Audit Matrix
+## 1. Root Causes & Technical Fixes
 
-### A. Writing Desk Components (`admin-desk`)
+### Task 1: About Page — Fix Genres, Hobbies, and Fun Facts `[object Object]` Rendering
+- **Root Cause**: The API endpoints (`/api/v1/site`) return `favoriteGenres`, `hobbies`, and `funFacts` as objects containing `{ id, name }` or `{ id, text }`. In `admin.js`, the tag/list rendering functions passed raw object items directly into `escapeHtml()`, which converted them to JavaScript's default string representation `"[object Object]"`. Furthermore, deletion functions attempted to pass string names instead of record UUIDs to backend deletion endpoints.
+- **Fix**:
+  - Updated `genresTagsHTML`, `hobbiesTagsHTML`, and `factsListHTML` in `admin.js` to extract property values (`g.name`, `h.name`, `fact.text`).
+  - Corrected deletion click handlers (`deleteAdminGenre`, `deleteAdminHobby`, `deleteAdminFact`) to resolve the underlying item's UUID `id` before requesting backend deletion.
 
-| Admin UI Location | Feature / Element | Existing HTML / Input | JS Handler | API Endpoint | Controller & Route | Prisma Model | DB Field | Public Render Function | Original Problem | Exact Fix Implemented |
-|---|---|---|---|---|---|---|---|---|---|---|
-| **Writing Desk → WIP Projects** | Edit WIP Button | `<button onclick="window.editAdminProject(idx)">` | `window.editAdminProject` | `PATCH /api/v1/admin/writing-projects/:id` | `updateWritingProject` in `admin.routes.js` | `WritingProject` | `title`, `status`, `progress`, `wordCount`, `synopsis` | `renderDesk()` in `app.js` | `window.editAdminProject` was undefined and form saved to `localStorage`. | Assigned `window.editAdminProject`, populates editor, submits to `PATCH /api/v1/admin/writing-projects/:id`, re-fetches `/api/v1/site`. |
-| **Writing Desk → WIP Projects** | Set Primary WIP Button | `<button onclick="window.setAdminPrimaryProject(idx)">` | `window.setAdminPrimaryProject` | `PATCH /api/v1/admin/writing-projects/:id/set-primary` | `setPrimaryWritingProject` in `admin.routes.js` | `WritingProject` | `isPrimary` | `renderDesk()` in `app.js` | Saved to `localStorage` locally without DB call. | Created `setPrimaryWritingProject` controller using Prisma transaction, connected frontend button. |
-| **Writing Desk → WIP Projects** | Delete WIP Button | `<button onclick="window.deleteAdminProject(idx)">` | `window.deleteAdminProject` | `DELETE /api/v1/admin/writing-projects/:id` | `deleteWritingProject` in `admin.routes.js` | `WritingProject` | Record deletion | `renderDesk()` in `app.js` | Saved to `localStorage` locally without DB call. | Created `deleteWritingProject` controller, connected frontend button with confirmation dialog. |
-| **Writing Desk → Dear Timeline Logs** | Edit Log Button | `<button onclick="window.editAdminUpdate(idx)">` | `window.editAdminUpdate` | `PATCH /api/v1/admin/desk-logs/:id` | `updateDeskLog` in `admin.routes.js` | `DeskLog` | `date`, `text` | `renderDesk()` in `app.js` | `window.editAdminUpdate` was undefined and save used `localStorage`. | Created `updateDeskLog` controller, bound `editAdminUpdate`, updated form submit to call API. |
-| **Writing Desk → Dear Timeline Logs** | Delete Log Button | `<button onclick="window.deleteAdminUpdate(idx)">` | `window.deleteAdminUpdate` | `DELETE /api/v1/admin/desk-logs/:id` | `deleteDeskLog` in `admin.routes.js` | `DeskLog` | Record deletion | `renderDesk()` in `app.js` | Used local array `.splice()` and `localStorage`. | Connected `deleteAdminUpdate` to `DELETE /api/v1/admin/desk-logs/:id`. |
-| **Writing Desk → Manuscript Snippets** | Edit Snippet Button | `<button onclick="window.editAdminSnippet(idx)">` | `window.editAdminSnippet` | `PATCH /api/v1/admin/snippets/:id` | `updateSnippet` in `admin.routes.js` | `ManuscriptSnippet` | `source`, `text` | `renderDesk()` in `app.js` | `window.editAdminSnippet` was undefined and save used `localStorage`. | Created `updateSnippet` controller, bound `editAdminSnippet`, updated form submit to call API. |
-| **Writing Desk → Manuscript Snippets** | Delete Snippet Button | `<button onclick="window.deleteAdminSnippet(idx)">` | `window.deleteAdminSnippet` | `DELETE /api/v1/admin/snippets/:id` | `deleteSnippet` in `admin.routes.js` | `ManuscriptSnippet` | Record deletion | `renderDesk()` in `app.js` | Used local array `.splice()` and `localStorage`. | Connected `deleteAdminSnippet` to `DELETE /api/v1/admin/snippets/:id`. |
-| **Writing Desk → Sneak Peeks & Extras** | Edit Sneak Peek Button | `<button onclick="window.editAdminSneak(idx)">` | `window.editAdminSneak` | `PATCH /api/v1/admin/sneak-peeks/:id` | `updateSneakPeek` in `admin.routes.js` | `SneakPeek` | `title`, `desc` | `renderDesk()` in `app.js` | `window.editAdminSneak` was undefined and save used `localStorage`. | Created `updateSneakPeek` controller, bound `editAdminSneak`, updated form submit to call API. |
-| **Writing Desk → Sneak Peeks & Extras** | Delete Sneak Peek Button | `<button onclick="window.deleteAdminSneak(idx)">` | `window.deleteAdminSneak` | `DELETE /api/v1/admin/sneak-peeks/:id` | `deleteSneakPeek` in `admin.routes.js` | `SneakPeek` | Record deletion | `renderDesk()` in `app.js` | Used local array `.splice()` and `localStorage`. | Connected `deleteAdminSneak` to `DELETE /api/v1/admin/sneak-peeks/:id`. |
+### Task 2: Book Cover — Image Upload & Persistent Storage
+- **Root Cause**: The Book editor previously lacked a standard HTML file picker and relied solely on manually typed string paths.
+- **Fix**:
+  - Added hidden `<input type="file" id="book-cover-file-input" accept="image/*">` and a visible **"📁 Upload Cover Image"** button.
+  - Implemented real-time file upload through `/api/v1/admin/uploads` using `FormData`.
+  - Added immediate image preview, persistent URL storage to PostgreSQL `Book.coverImage`, and a **"✕ Remove Cover"** option.
+
+### Task 3: Character Art Studio — Multi-Image Upload & Section Auto-Hiding
+- **Root Cause**: The Character Art Studio editor lacked multi-file upload support and individual image deletion controls. The public website also did not dynamically hide the Character Art Studio container when zero images were defined.
+- **Fix**:
+  - Added multi-file upload support (`#book-art-files-input`) in `admin.js`.
+  - Built an interactive thumbnail gallery in the book modal allowing authors to upload multiple art files, preview them, and remove individual images with `✕` badges.
+  - Updated `app.js` (`openBookModal`) to parse single or comma-separated image URLs into an array. When no images exist (array is empty), the entire Character Art Studio section (`#book-character-art-studio`, heading, gallery container, and parent grid column) is set to `display: none` and cleanly hidden without leaving empty whitespace.
+
+### Task 4: Cataloged Books & Novels — Fix False Success Deletion Bug
+- **Root Cause**: `window.authorData.booksData` mapped `id` to the book slug (e.g., `'our-hundred-days'`) and `dbId` to the database UUID. `admin.js` was passing `book.id` (slug) to `deleteBook`, while backend Prisma queries initially expected exact UUIDs for `where: { id }`. Furthermore, `apiFetch` in `admin.js` returned response objects without throwing on HTTP 400/500 errors, causing the frontend to execute `showToast("Book deleted successfully")` even when backend deletion failed.
+- **Fix**:
+  - Updated `deleteBook` and `updateBook` in `admin.controller.js` to support lookup by either database `id` or `slug` (`where: { OR: [{ id }, { slug: id }] }`).
+  - Updated `admin.js` `deleteAdminBook` to pass `book.dbId || book.id`.
+  - Enhanced `apiFetch` to parse error JSON and throw on non-2xx responses, ensuring errors display proper error toasts and preventing false positive success messages.
+  - Ensured relation records (`BookCharacter`, `BookPlaylistTrack`, `BookPurchaseLink`) are safely cleaned up before book deletion.
+
+### Task 5: Book Edit Pop-up — Fix Save Reliability & Validation
+- **Root Cause**: Field name mismatches between frontend modal fields and backend Zod schemas, along with missing error feedback and slug collision issues when updating books by slug.
+- **Fix**:
+  - Updated `updateBook` controller to perform slug collision checks against other books (`NOT: { id: targetDbId }`) and execute transactional relation replacement (`$transaction`).
+  - Bound saving states (`Saving Book... ⏳`), disabled submit buttons during request execution, and caught backend validation errors to display actionable feedback.
+
+### Task 6: Remove "Sneak Peeks & Extras" Admin Section
+- **Root Cause**: Retired feature section in admin dashboard navigation.
+- **Fix**:
+  - Cleanly removed the "Sneak Peeks & Extras" sidebar link (`data-section="sneak-peeks"`), dashboard card, forms, and event listeners from `admin.html` and `admin.js`.
+  - Preserved backend database models and endpoints so existing data and public manuscript snippets remain completely intact.
+
+### Task 7: Reposition "Logs from the Desk" Admin Navigation
+- **Root Cause**: Desired sidebar rearrangement after retiring Sneak Peeks.
+- **Fix**:
+  - Relocated "Logs from the Desk" navigation item into the vacated sidebar position directly beneath "Manuscript Snippets & Scraps" in `admin.html`.
+  - Removed duplicate navigation entries while preserving full editor functionality.
+
+### Task 8: Manuscript Snippets & Scraps — Reading Modal & External Reading URLs
+- **Root Cause**: Public site rendered snippets in static cards without dedicated reading modals or optional external reading links (e.g., Substack).
+- **Fix**:
+  - **Database & API**: Added optional `externalUrl String?` field to `ManuscriptSnippet` in `schema.prisma`. Updated `admin.controller.js`, `public.controller.js`, and `admin.js` to accept, save, and return `externalUrl`.
+  - **Public Reading Popup**: Created `openSnippetModal(snippetId)` in `app.js` with comfortable reading typography, pre-wrap paragraph formatting, max-height scrolling, backdrop click close, Escape key listener, body scroll locking, and an optional **"Continue Reading on External Platform ↗"** button rendered only when `externalUrl` is present.
+
+### Task 9: Remove "Store / Boutique" Admin Section
+- **Root Cause**: Store was not used in current public site build.
+- **Fix**:
+  - Cleanly removed the "Store / Boutique" navigation link and tab panel from `admin.html` and `admin.js`.
+  - Retained PostgreSQL `StoreProduct` schema and existing database records to prevent destructive migrations.
+
+### Task 10 & 11: General Reliability & Automated Testing
+- Updated `server/src/utils/prisma.js` to ensure configuration and environment variables load before PrismaClient initialization.
+- Added comprehensive automated tests in `server/tests/api.test.js` covering Health, Auth, Writing Desk, Bookshelf (covers, character art, DB deletion), About CMS (genres, hobbies, fun facts), and Manuscript Snippets (`externalUrl`).
 
 ---
 
-### B. Bookshelf & Volumes Components (`admin-books`)
+## 2. Summary of Files Changed
 
-| Admin UI Location | Feature / Element | Existing HTML / Input | JS Handler | API Endpoint | Controller & Route | Prisma Model | DB Field | Public Render Function | Original Problem | Exact Fix Implemented |
-|---|---|---|---|---|---|---|---|---|---|---|
-| **Bookshelf & Volumes** | Book Record Editor | `#book-editor-form` | `saveBookForm()` | `POST /api/v1/admin/books` / `PATCH /api/v1/admin/books/:id` | `createBook` / `updateBook` in `admin.routes.js` | `Book`, `BookCharacter`, `BookPlaylistTrack`, `BookPurchaseLink` | `title`, `slug`, `genre`, `tagline`, `synopsis`, `coverImage`, `coverColor`, `coverDoodle`, `authorNotes`, `characters`, `playlist`, `purchaseLinks` | `renderBooks()` & `openBookModal()` in `app.js` | `saveBookForm()` only saved to `localStorage`. | Rewrote `saveBookForm()` to send payload via `apiFetch` to API endpoints and re-fetch live bundle. |
-| **Bookshelf & Volumes** | Character Art Studio Images | `#book-art-image` & `#book-art-caption` | `openBookEditor()` & `saveBookForm()` | `POST /api/v1/admin/books` / `PATCH /api/v1/admin/books/:id` | `createBook` / `updateBook` | `Book` | `characterArtImage`, `characterArtCaption`, `characterArtPlaceholder` | `openBookModal()` in `app.js` | No input fields existed in admin form for image URL/path or caption. | Added inputs for `characterArtImage` and `characterArtCaption` in book editor HTML and `saveBookForm()`. |
-| **Bookshelf & Volumes** | Conditional Character Art Section | Public Book Details Modal | `openBookModal()` | `GET /api/v1/site` | `getSiteBundle` in `public.controller.js` | `Book` | `characterArtImage` | `openBookModal()` in `app.js` | Placeholder text was rendered even when no image existed. | Ensured `app.js` checks `if (book.characterArtImage && book.characterArtImage.trim())`. Renders section ONLY if image exists. |
-| **Bookshelf & Volumes** | Delete Book Record | `<button onclick="window.deleteAdminBook(id)">` | `window.deleteAdminBook` | `DELETE /api/v1/admin/books/:id` | `deleteBook` in `admin.routes.js` | `Book` | Record deletion | `renderBooks()` in `app.js` | Saved deletion to `localStorage` only. | Connected `deleteAdminBook` to `DELETE /api/v1/admin/books/:id`. |
-
----
-
-### C. About Page Components (`admin-about`)
-
-| Admin UI Location | Feature / Element | Existing HTML / Input | JS Handler | API Endpoint | Controller & Route | Prisma Model | DB Field | Public Render Function | Original Problem | Exact Fix Implemented |
-|---|---|---|---|---|---|---|---|---|---|---|
-| **About Page** | Main Story & Anonymity Details | `#admin-about-main-form` | Submit listener in `renderAdminAboutTab()` | `PATCH /api/v1/admin/about` | `updateAboutSettings` in `admin.routes.js` | `AboutSetting` | `pageTitle`, `pageSubtitle`, `whyIWrite`, `anonLocation`, `anonCompanion`, `anonBeverage` | `renderAbout()` in `app.js` | Only heading updated, rest saved to `localStorage`. | Updated submit handler to call `PATCH /api/v1/admin/about` via `apiFetch`. |
-| **About Page** | Favorite Tropes | `#admin-add-trope-form` & `<button onclick="deleteAdminTrope(idx)">` | Submit & `window.deleteAdminTrope` | `POST /api/v1/admin/tropes` & `DELETE /api/v1/admin/tropes/:id` | `addTrope` / `deleteTrope` | `Trope` | `name`, `description` | `renderAbout()` in `app.js` | Saved to local array and `localStorage`. | Connected forms and delete buttons to `POST/DELETE /api/v1/admin/tropes`. |
-| **About Page** | Favorite Genres | `#admin-add-genre-form` & `<button onclick="deleteAdminGenre(idx)">` | Submit & `window.deleteAdminGenre` | `POST /api/v1/admin/genres` & `DELETE /api/v1/admin/genres/:id` | `addGenre` / `deleteGenre` | `Genre` | `name` | `renderAbout()` in `app.js` | Saved to local array and `localStorage`. | Connected forms and delete buttons to `POST/DELETE /api/v1/admin/genres`. |
-| **About Page** | Hobbies & Musings | `#admin-add-hobby-form` & `<button onclick="deleteAdminHobby(idx)">` | Submit & `window.deleteAdminHobby` | `POST /api/v1/admin/hobbies` & `DELETE /api/v1/admin/hobbies/:id` | `addHobby` / `deleteHobby` | `Hobby` | `name` | `renderAbout()` in `app.js` | Saved to local array and `localStorage`. | Connected forms and delete buttons to `POST/DELETE /api/v1/admin/hobbies`. |
-| **About Page** | Fun Facts Corkboard | `#admin-add-fact-form` & `<button onclick="deleteAdminFact(idx)">` | Submit & `window.deleteAdminFact` | `POST /api/v1/admin/fun-facts` & `DELETE /api/v1/admin/fun-facts/:id` | `addFunFact` / `deleteFunFact` | `FunFact` | `text` | `renderAbout()` in `app.js` | Saved to local array and `localStorage`. | Connected forms and delete buttons to `POST/DELETE /api/v1/admin/fun-facts`. |
+| File | Changes Made |
+| :--- | :--- |
+| `server/prisma/schema.prisma` | Added optional `externalUrl String?` to `ManuscriptSnippet` model. |
+| `server/src/validators/content.validator.js` | Updated `heroTitle` schema to allow empty string. |
+| `server/src/controllers/admin.controller.js` | Enhanced `updateBook` & `deleteBook` to lookup by ID or slug without collision; added `externalUrl` support to snippets. |
+| `server/src/controllers/public.controller.js` | Mapped `externalUrl` in site bundle response (`snippets`). |
+| `server/src/utils/prisma.js` | Required `config` prior to Prisma initialization to prevent fallback port issues. |
+| `admin.js` | Fixed `[object Object]` rendering for About items; added cover/art image upload & preview; fixed book save/delete IDs and error handling; removed retired tabs; added `externalUrl` field. |
+| `admin.html` | Removed Sneak Peeks and Store tabs; repositioned Desk Logs in sidebar nav; added file inputs for book cover & character art; added `externalUrl` input to snippets form. |
+| `app.js` | Added interactive reading modal for Manuscript Snippets (`openSnippetModal`); added multi-image art support & dynamic auto-hiding for empty Character Art Studio sections. |
+| `server/tests/api.test.js` | Added 15 comprehensive automated unit & integration tests covering all CMS features. |
 
 ---
 
-## 3. Data Flow Validation Summary
+## 3. Database & API Schema Changes
 
-Each CMS operation now strictly obeys the required pipeline:
-$$\text{Admin UI} \xrightarrow{\text{apiFetch (CSRF + Session)}} \text{Express Route} \xrightarrow{\text{Zod Validator}} \text{Prisma ORM} \xrightarrow{\text{PostgreSQL}} \xrightarrow{\text{GET /api/v1/site}} \text{Public app.js}$$
+### Prisma Schema Diff (`ManuscriptSnippet`)
+```prisma
+model ManuscriptSnippet {
+  id          String   @id @default(uuid())
+  source      String
+  text        String
+  externalUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+```
 
-No operations rely on `localStorage` for content persistence.
+---
+
+## 4. Test Results & Verification
+
+- **Automated Test Suite**: Ran `npm test` inside `server/`.
+  - **Result**: `15 passed, 15 total` (100% pass rate).
+- **Public & Admin UI Verification**:
+  - Genres, Hobbies, and Fun Facts display actual text values in Admin → About.
+  - Book Cover file picker uploads image to persistent `/uploads` storage and displays live preview.
+  - Character Art Studio multi-file picker uploads images, shows thumbnail gallery with individual deletion buttons, and hides the container on public pages when empty.
+  - Cataloged Books deletion deletes actual database UUID and refreshes admin & public views.
+  - Manuscript Snippet popup opens with formatted text, scroll lock, keyboard controls, and external URL link when configured.
+  - Admin sidebar clean navigation with retired tabs removed and Desk Logs repositioned.
+
+---
+
+## 5. Limitations & Remaining Notes
+- Persistent upload files are saved locally in `./uploads`. In production server deployments, ensure the `./uploads` directory has proper write permissions and persistent disk storage attached.
+- No destructive migrations were executed; existing database data for Store and Sneak Peeks remains preserved in PostgreSQL.

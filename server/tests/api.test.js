@@ -87,13 +87,13 @@ describe('My-Website CMS API & Security Test Suite', () => {
       const res = await agent
         .patch('/api/v1/admin/home')
         .set('X-CSRF-Token', token)
-        .send({ heroTitle: 'Tested Archive Title' });
+        .send({ heroTitle: '' });
 
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(true);
 
       const siteRes = await request(app).get('/api/v1/site');
-      expect(siteRes.body.homeData.heroTitle).toBe('Tested Archive Title');
+      expect(siteRes.body.homeData.heroTitle).toBe('');
     });
 
     it('POST /api/v1/auth/logout should destroy session', async () => {
@@ -252,6 +252,56 @@ describe('My-Website CMS API & Security Test Suite', () => {
       expect(created.characterArtImage).toBe('assets/starlight-char-art.jpg');
       expect(created.characters.length).toBe(1);
     });
+
+    it('should update a book cover and character art studio images, then delete the book cleanly', async () => {
+      const siteResBefore = await request(app).get('/api/v1/site');
+      const book = siteResBefore.body.booksData.find(b => b.slug === 'starlight-academy');
+      expect(book).toBeDefined();
+
+      const updateRes = await agent
+        .patch(`/api/v1/admin/books/${book.dbId || book.id}`)
+        .set('X-CSRF-Token', csrfToken)
+        .send({
+          slug: 'starlight-academy',
+          title: 'Starlight Academy Updated',
+          genre: 'Dark Academia',
+          tagline: 'Secrets beneath ancient stone.',
+          synopsis: 'A mysterious academy shrouded in secrets.',
+          coverColor: '#2b3a4a',
+          coverDoodle: 'star',
+          coverImage: '/uploads/starlight-new-cover.jpg',
+          characterArtImage: '/uploads/art1.jpg,/uploads/art2.jpg',
+          characterArtCaption: 'Updated caption',
+          characterArtPlaceholder: 'Character Art Studio',
+          authorNotes: 'Updated notes',
+          characters: [
+            { name: 'Elyse Vance', role: 'Protagonist', desc: 'A scholar of ancient runes.' }
+          ],
+          playlist: [],
+          purchaseLinks: []
+        });
+
+      expect(updateRes.statusCode).toBe(200);
+      expect(updateRes.body.data.coverImage).toBe('/uploads/starlight-new-cover.jpg');
+
+
+      const siteResAfterUpdate = await request(app).get('/api/v1/site');
+      const updatedBook = siteResAfterUpdate.body.booksData.find(b => b.id === book.id);
+      expect(updatedBook.title).toBe('Starlight Academy Updated');
+      expect(updatedBook.coverImage).toBe('/uploads/starlight-new-cover.jpg');
+      expect(updatedBook.characterArtImage).toBe('/uploads/art1.jpg,/uploads/art2.jpg');
+
+      const deleteRes = await agent
+        .delete(`/api/v1/admin/books/${book.id}`)
+        .set('X-CSRF-Token', csrfToken);
+
+      expect(deleteRes.statusCode).toBe(200);
+      expect(deleteRes.body.success).toBe(true);
+
+      const siteResAfterDelete = await request(app).get('/api/v1/site');
+      const deletedBook = siteResAfterDelete.body.booksData.find(b => b.id === book.id);
+      expect(deletedBook).toBeUndefined();
+    });
   });
 
   describe('5. About Page CMS CRUD Operations', () => {
@@ -288,12 +338,70 @@ describe('My-Website CMS API & Security Test Suite', () => {
 
       expect(tropeRes.statusCode).toBe(201);
 
+      const genreRes = await agent
+        .post('/api/v1/admin/genres')
+        .set('X-CSRF-Token', csrfToken)
+        .send({ name: 'Gothic Fantasy' });
+      expect(genreRes.statusCode).toBe(201);
+      expect(genreRes.body.data.name).toBe('Gothic Fantasy');
+
+      const hobbyRes = await agent
+        .post('/api/v1/admin/hobbies')
+        .set('X-CSRF-Token', csrfToken)
+        .send({ name: 'Calligraphy' });
+      expect(hobbyRes.statusCode).toBe(201);
+      expect(hobbyRes.body.data.name).toBe('Calligraphy');
+
+      const factRes = await agent
+        .post('/api/v1/admin/fun-facts')
+        .set('X-CSRF-Token', csrfToken)
+        .send({ text: 'Collects vintage ink bottles' });
+      expect(factRes.statusCode).toBe(201);
+      expect(factRes.body.data.text).toBe('Collects vintage ink bottles');
+
       const siteRes = await request(app).get('/api/v1/site');
       expect(siteRes.body.aboutData.pageTitle).toBe('About Dessy Ackerman');
       expect(siteRes.body.aboutData.whyIWrite).toBe('I write to build sanctuaries for wandering minds.');
       expect(siteRes.body.aboutData.anonymityDetails.location).toBe('Cozy Corner Bakery');
       expect(siteRes.body.aboutData.favoriteTropes.some(t => t.name === 'Enemies to Lovers')).toBe(true);
+      expect(siteRes.body.aboutData.favoriteGenres.some(g => g.name === 'Gothic Fantasy')).toBe(true);
+      expect(siteRes.body.aboutData.hobbies.some(h => h.name === 'Calligraphy')).toBe(true);
+      expect(siteRes.body.aboutData.funFacts.some(f => f.text === 'Collects vintage ink bottles')).toBe(true);
+    });
+  });
+
+  describe('6. Manuscript Snippets with externalUrl', () => {
+    let agent;
+    let csrfToken;
+
+    beforeAll(async () => {
+      agent = request.agent(app);
+      const loginRes = await agent
+        .post('/api/v1/auth/login')
+        .send({ email: 'admin@dessyackerman.com', password: 'dessy123' });
+      csrfToken = loginRes.body.csrfToken;
+    });
+
+    it('should create and update a snippet with optional externalUrl', async () => {
+      const createRes = await agent
+        .post('/api/v1/admin/snippets')
+        .set('X-CSRF-Token', csrfToken)
+        .send({
+          source: 'Excerpt: Chapter 1',
+          text: 'The moon rose high above the silver trees.',
+          externalUrl: 'https://substack.com/@dessyackerman/p/chapter-1'
+        });
+
+      expect(createRes.statusCode).toBe(201);
+      const snippetId = createRes.body.data.id;
+      expect(createRes.body.data.externalUrl).toBe('https://substack.com/@dessyackerman/p/chapter-1');
+
+      const siteRes = await request(app).get('/api/v1/site');
+      const foundSnippet = siteRes.body.deskData.snippets.find(s => s.id === snippetId);
+      expect(foundSnippet).toBeDefined();
+      expect(foundSnippet.externalUrl).toBe('https://substack.com/@dessyackerman/p/chapter-1');
     });
   });
 
 });
+

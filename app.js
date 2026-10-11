@@ -566,17 +566,15 @@ function renderDesk() {
   `).join('');
 
   const snippetsHTML = (desk.snippets || []).map((snip, idx) => `
-    <div class="typewriter-scrap" style="transform: rotate(${idx % 2 === 0 ? '-1deg' : '1.5deg'});">
+    <div class="typewriter-scrap" style="transform: rotate(${idx % 2 === 0 ? '-1deg' : '1.5deg'}); cursor: pointer;" onclick="openSnippetModal('${escapeHtml(snip.id)}')">
       <div class="scrap-header">${escapeHtml(snip.source)}</div>
-      <p style="white-space: pre-line;">${escapeHtml(snip.text)}</p>
+      <p style="white-space: pre-line; max-height: 120px; overflow: hidden; position: relative;">
+        ${escapeHtml(snip.text.length > 220 ? snip.text.substring(0, 220) + '...' : snip.text)}
+      </p>
+      <div style="margin-top: 0.6rem; text-align: right;">
+        <span class="read-more-link" style="font-family: var(--font-handwritten); font-size: 1.1rem; color: var(--color-sage); font-weight: bold;">Read Full Excerpt 📖 →</span>
+      </div>
       <div class="torn-bottom-edge"></div>
-    </div>
-  `).join('');
-
-  const sneakHTML = (desk.sneakPeeks || []).map(sp => `
-    <div class="sneak-peek-item">
-      <h4>${escapeHtml(sp.title)}</h4>
-      <p>${escapeHtml(sp.desc)}</p>
     </div>
   `).join('');
 
@@ -623,14 +621,6 @@ function renderDesk() {
             <!-- Populated via js trigger -->
           </div>
           <button class="quote-btn-next" id="quote-next-btn">Turn Page →</button>
-        </div>
-
-        <!-- Sneak peek links -->
-        <div class="sneak-peeks-card">
-          <h3 style="font-size: 1.3rem; border-bottom: 1px solid var(--color-parchment-accent); padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
-            ${escapeHtml(desk.sneakPeeksTitle || "Sneak Peeks & Extras")}
-          </h3>
-          ${sneakHTML || '<p style="color:var(--color-ink-light); font-style:italic;">No extras added yet.</p>'}
         </div>
       </div>
     </div>
@@ -732,6 +722,30 @@ function openBookModal(bookId) {
     </a>
   `).join('');
 
+  let artImages = [];
+  if (book.characterArtImage && book.characterArtImage.trim()) {
+    if (book.characterArtImage.trim().startsWith('[')) {
+      try { artImages = JSON.parse(book.characterArtImage.trim()); } catch(e) {}
+    }
+    if (!artImages.length) {
+      artImages = book.characterArtImage.split(',').map(s => s.trim()).filter(Boolean);
+    }
+  }
+
+  const characterArtHTML = artImages.length > 0 ? `
+    <div class="character-art-studio-card">
+      <h4>🎨 ${escapeHtml(book.characterArtPlaceholder || 'Character Art Studio')}</h4>
+      <div class="character-art-gallery" style="display:flex; flex-wrap:wrap; gap:1rem; margin-top:0.8rem;">
+        ${artImages.map(imgUrl => `
+          <div class="character-art-frame" style="flex: 1; min-width: 200px; max-width: 100%; margin: 0;">
+            <img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(book.title)} Character Art" style="width:100%; height:auto; display:block; border-radius:4px;" />
+          </div>
+        `).join('')}
+      </div>
+      ${book.characterArtCaption ? `<p class="character-art-caption" style="margin-top:0.6rem;">${escapeHtml(book.characterArtCaption)}</p>` : ''}
+    </div>
+  ` : '';
+
   DOM.modalContentSlot.innerHTML = `
     <div class="book-details-layout">
       <!-- Left column: Visual styling details + Buy links -->
@@ -772,16 +786,8 @@ function openBookModal(bookId) {
           ${characterCardsHTML || '<p style="color:var(--color-ink-light); font-style:italic;">No character profiles added yet.</p>'}
         </div>
         
-        <!-- Character Art Studio (Only shows if an art image is added in admin) -->
-        ${(book.characterArtImage && book.characterArtImage.trim()) ? `
-          <div class="character-art-studio-card">
-            <h4>🎨 Character Art Studio</h4>
-            <div class="character-art-frame">
-              <img src="${escapeHtml(book.characterArtImage.trim())}" alt="${escapeHtml(book.title)} Character Art" />
-              ${book.characterArtCaption ? `<p class="character-art-caption">${escapeHtml(book.characterArtCaption)}</p>` : ''}
-            </div>
-          </div>
-        ` : ''}
+        <!-- Character Art Studio (Only shows if at least 1 art image is added in admin) -->
+        ${characterArtHTML}
 
         ${book.pinterestMoodboard ? `
           <a href="${escapeHtml(book.pinterestMoodboard)}" class="moodboard-promo-link" target="_blank" rel="noopener">
@@ -819,6 +825,39 @@ function closeBookModal() {
   DOM.modal.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
 }
+
+function openSnippetModal(snippetId) {
+  const snippets = (window.authorData.deskData && window.authorData.deskData.snippets) || [];
+  const snip = snippets.find(s => s.id === snippetId);
+  if (!snip) return;
+
+  const externalBtnHTML = (snip.externalUrl && snip.externalUrl.trim()) ? `
+    <div style="margin-top: 1.5rem; text-align: center;">
+      <a href="${escapeHtml(snip.externalUrl.trim())}" target="_blank" rel="noopener" class="admin-btn admin-btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none; padding: 0.6rem 1.4rem; font-size: 1.05rem;">
+        Continue Reading on External Platform ↗
+      </a>
+    </div>
+  ` : '';
+
+  DOM.modalContentSlot.innerHTML = `
+    <div class="snippet-modal-container" style="padding: 1rem 0.5rem; max-width: 720px; margin: 0 auto;">
+      <span class="handwritten" style="font-size: 1.2rem; color: var(--color-sage); display: block; margin-bottom: 0.3rem;">📖 Manuscript Excerpt</span>
+      <h2 style="font-family: var(--font-heading); font-size: 1.8rem; color: var(--color-ink); margin-bottom: 1.2rem; border-bottom: 2px solid var(--color-parchment-accent); padding-bottom: 0.5rem;">
+        ${escapeHtml(snip.source)}
+      </h2>
+      <div class="snippet-reading-body" style="font-family: var(--font-serif); font-size: 1.1rem; line-height: 1.8; color: var(--color-ink); white-space: pre-wrap; max-height: 60vh; overflow-y: auto; padding-right: 0.5rem; background: var(--color-parchment); padding: 1.2rem; border-radius: var(--border-radius-sm); border: 1px solid rgba(139,115,85,0.2);">
+        ${escapeHtml(snip.text)}
+      </div>
+      ${externalBtnHTML}
+    </div>
+  `;
+
+  document.body.style.overflow = 'hidden';
+  DOM.modal.classList.add('active');
+  DOM.modal.setAttribute('aria-hidden', 'false');
+}
+
+window.openSnippetModal = openSnippetModal;
 
 // --- Theme Settings (Candlelight Ambient Light) ---
 function initCandleMode() {

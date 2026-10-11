@@ -140,7 +140,7 @@ async function getFullSiteBundle(req, res, next) {
         isPrimary: p.isPrimary
       })),
       updates: deskLogs.map(l => ({ id: l.id, date: l.date, text: l.text })),
-      snippets: snippets.map(s => ({ id: s.id, source: s.source, text: s.text })),
+      snippets: snippets.map(s => ({ id: s.id, source: s.source, text: s.text, externalUrl: s.externalUrl || null })),
       quotes: deskQuotes.map(q => ({ id: q.id, text: q.text })),
       sneakPeeks: sneakPeeks.map(sp => ({ id: sp.id, title: sp.title, desc: sp.desc }))
     };

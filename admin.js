@@ -144,6 +144,17 @@ async function apiFetch(url, options = {}) {
     checkAuth();
     throw new Error('Unauthorized');
   }
+  if (!response.ok) {
+    let errMessage = `HTTP ${response.status} Error`;
+    try {
+      const errData = await response.json();
+      if (errData.message) errMessage = errData.message;
+      else if (errData.errors && Array.isArray(errData.errors)) {
+        errMessage = errData.errors.map(e => e.message || `${e.path?.join('.')}: ${e.message}`).join(', ');
+      }
+    } catch (e) {}
+    throw new Error(errMessage);
+  }
   return response;
 }
 
@@ -260,7 +271,6 @@ function renderAdminDashboard() {
           <li><button class="admin-tab-btn" data-admin-tab="admin-desk">✍️ Writing Desk</button></li>
           <li><button class="admin-tab-btn" data-admin-tab="admin-quotes">📜 Quote Cards</button></li>
           <li><button class="admin-tab-btn" data-admin-tab="admin-mascot">🐱 Mascot & Audio</button></li>
-          <li><button class="admin-tab-btn" data-admin-tab="admin-store">🛍️ Store & Boutique</button></li>
           <li><button class="admin-tab-btn" data-admin-tab="admin-export">💾 Export & Security</button></li>
         </ul>
       </nav>
@@ -272,7 +282,6 @@ function renderAdminDashboard() {
       <div class="admin-content-section" id="admin-desk" role="tabpanel"></div>
       <div class="admin-content-section" id="admin-quotes" role="tabpanel"></div>
       <div class="admin-content-section" id="admin-mascot" role="tabpanel"></div>
-      <div class="admin-content-section" id="admin-store" role="tabpanel"></div>
       <div class="admin-content-section" id="admin-export" role="tabpanel"></div>
     </div>
   `;
@@ -330,9 +339,6 @@ function renderAdminTabContent(tabId) {
       break;
     case 'admin-mascot':
       renderAdminMascotTab();
-      break;
-    case 'admin-store':
-      renderAdminStoreTab();
       break;
     case 'admin-export':
       renderAdminExportTab();
@@ -607,35 +613,47 @@ function renderAdminAboutTab() {
         <span>${escapeHtml(t.description || '')}</span>
       </div>
       <div class="admin-item-actions">
-        <button type="button" class="admin-action-btn-sm danger" onclick="window.deleteAdminTrope(${idx})">Delete</button>
+        <button type="button" class="admin-action-btn-sm danger" onclick="window.deleteAdminTrope('${escapeHtml(t.id || idx)}')">Delete</button>
       </div>
     </div>
   `).join('');
 
-  const genresTagsHTML = (about.favoriteGenres || []).map((g, idx) => `
-    <span class="admin-tag-item">
-      ${escapeHtml(g)}
-      <button type="button" class="admin-tag-remove" onclick="window.deleteAdminGenre(${idx})">✕</button>
-    </span>
-  `).join('');
+  const genresTagsHTML = (about.favoriteGenres || []).map((g, idx) => {
+    const name = typeof g === 'object' && g !== null ? (g.name || '') : String(g);
+    const id = typeof g === 'object' && g !== null ? g.id : idx;
+    return `
+      <span class="admin-tag-item">
+        ${escapeHtml(name)}
+        <button type="button" class="admin-tag-remove" onclick="window.deleteAdminGenre('${escapeHtml(id)}')">✕</button>
+      </span>
+    `;
+  }).join('');
 
-  const hobbiesTagsHTML = (about.hobbies || []).map((h, idx) => `
-    <span class="admin-tag-item">
-      ${escapeHtml(h)}
-      <button type="button" class="admin-tag-remove" onclick="window.deleteAdminHobby(${idx})">✕</button>
-    </span>
-  `).join('');
+  const hobbiesTagsHTML = (about.hobbies || []).map((h, idx) => {
+    const name = typeof h === 'object' && h !== null ? (h.name || '') : String(h);
+    const id = typeof h === 'object' && h !== null ? h.id : idx;
+    return `
+      <span class="admin-tag-item">
+        ${escapeHtml(name)}
+        <button type="button" class="admin-tag-remove" onclick="window.deleteAdminHobby('${escapeHtml(id)}')">✕</button>
+      </span>
+    `;
+  }).join('');
 
-  const factsListHTML = (about.funFacts || []).map((fact, idx) => `
-    <div class="admin-item-row" style="margin-bottom: 0.6rem;">
-      <div class="admin-item-title-col">
-        <span style="color: var(--color-ink); font-style: normal;">${escapeHtml(fact)}</span>
+  const factsListHTML = (about.funFacts || []).map((fact, idx) => {
+    const text = typeof fact === 'object' && fact !== null ? (fact.text || fact.name || '') : String(fact);
+    const id = typeof fact === 'object' && fact !== null ? fact.id : idx;
+    return `
+      <div class="admin-item-row" style="margin-bottom: 0.6rem;">
+        <div class="admin-item-title-col">
+          <span style="color: var(--color-ink); font-style: normal;">${escapeHtml(text)}</span>
+        </div>
+        <div class="admin-item-actions">
+          <button type="button" class="admin-action-btn-sm danger" onclick="window.deleteAdminFact('${escapeHtml(id)}')">Delete</button>
+        </div>
       </div>
-      <div class="admin-item-actions">
-        <button type="button" class="admin-action-btn-sm danger" onclick="window.deleteAdminFact(${idx})">Delete</button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 
   container.innerHTML = `
     <!-- Bio Narrative & Anonymity logs -->
@@ -850,13 +868,19 @@ function renderAdminAboutTab() {
   });
 }
 
-window.deleteAdminTrope = async function(idx) {
-  const trope = window.authorData.aboutData.favoriteTropes[idx];
-  if (trope && trope.id && confirm("Delete this trope?")) {
+window.deleteAdminTrope = async function(identifier) {
+  let tropeId = identifier;
+  if (typeof identifier === 'number' || !isNaN(identifier)) {
+    const trope = window.authorData?.aboutData?.favoriteTropes?.[identifier];
+    tropeId = (typeof trope === 'object' && trope !== null) ? trope.id : null;
+  }
+  if (!tropeId && typeof identifier === 'string') tropeId = identifier;
+  if (tropeId && confirm("Delete this trope?")) {
     try {
-      await apiFetch(`/api/v1/admin/tropes/${trope.id}`, { method: 'DELETE' });
+      await apiFetch(`/api/v1/admin/tropes/${tropeId}`, { method: 'DELETE' });
       const res = await fetch('/api/v1/site');
       if (res.ok) window.authorData = await res.json();
+      showAdminToast("Trope deleted!");
       renderAdminAboutTab();
     } catch (err) {
       showAdminToast("Error deleting trope: " + err.message, "❌");
@@ -864,15 +888,20 @@ window.deleteAdminTrope = async function(idx) {
   }
 };
 
-window.deleteAdminGenre = async function(idx) {
-  const genre = window.authorData.aboutData.favoriteGenres[idx];
-  // If genre is an object or string
-  const genreId = (typeof genre === 'object') ? genre.id : null;
+window.deleteAdminGenre = async function(identifier) {
+  let genreId = identifier;
+  if (typeof identifier === 'number' || !isNaN(identifier)) {
+    const genre = window.authorData?.aboutData?.favoriteGenres?.[identifier];
+    genreId = (typeof genre === 'object' && genre !== null) ? genre.id : null;
+  }
+  if (!genreId && typeof identifier === 'string') genreId = identifier;
+
   if (genreId && confirm("Delete this genre tag?")) {
     try {
       await apiFetch(`/api/v1/admin/genres/${genreId}`, { method: 'DELETE' });
       const res = await fetch('/api/v1/site');
       if (res.ok) window.authorData = await res.json();
+      showAdminToast("Genre deleted!");
       renderAdminAboutTab();
     } catch (err) {
       showAdminToast("Error deleting genre: " + err.message, "❌");
@@ -880,14 +909,20 @@ window.deleteAdminGenre = async function(idx) {
   }
 };
 
-window.deleteAdminHobby = async function(idx) {
-  const hobby = window.authorData.aboutData.hobbies[idx];
-  const hobbyId = (typeof hobby === 'object') ? hobby.id : null;
+window.deleteAdminHobby = async function(identifier) {
+  let hobbyId = identifier;
+  if (typeof identifier === 'number' || !isNaN(identifier)) {
+    const hobby = window.authorData?.aboutData?.hobbies?.[identifier];
+    hobbyId = (typeof hobby === 'object' && hobby !== null) ? hobby.id : null;
+  }
+  if (!hobbyId && typeof identifier === 'string') hobbyId = identifier;
+
   if (hobbyId && confirm("Delete this hobby tag?")) {
     try {
       await apiFetch(`/api/v1/admin/hobbies/${hobbyId}`, { method: 'DELETE' });
       const res = await fetch('/api/v1/site');
       if (res.ok) window.authorData = await res.json();
+      showAdminToast("Hobby deleted!");
       renderAdminAboutTab();
     } catch (err) {
       showAdminToast("Error deleting hobby: " + err.message, "❌");
@@ -895,14 +930,20 @@ window.deleteAdminHobby = async function(idx) {
   }
 };
 
-window.deleteAdminFact = async function(idx) {
-  const fact = window.authorData.aboutData.funFacts[idx];
-  const factId = (typeof fact === 'object') ? fact.id : null;
+window.deleteAdminFact = async function(identifier) {
+  let factId = identifier;
+  if (typeof identifier === 'number' || !isNaN(identifier)) {
+    const fact = window.authorData?.aboutData?.funFacts?.[identifier];
+    factId = (typeof fact === 'object' && fact !== null) ? fact.id : null;
+  }
+  if (!factId && typeof identifier === 'string') factId = identifier;
+
   if (factId && confirm("Delete this fun fact?")) {
     try {
       await apiFetch(`/api/v1/admin/fun-facts/${factId}`, { method: 'DELETE' });
       const res = await fetch('/api/v1/site');
       if (res.ok) window.authorData = await res.json();
+      showAdminToast("Fun fact deleted!");
       renderAdminAboutTab();
     } catch (err) {
       showAdminToast("Error deleting fun fact: " + err.message, "❌");
@@ -914,31 +955,85 @@ window.deleteAdminFact = async function(idx) {
 // TAB 3: BOOKSHELF & VOLUMES TAB
 // ==========================================================================
 let editingBookId = null;
+let currentBookArtImages = [];
+
+function renderCharacterArtGalleryPreview() {
+  const container = document.getElementById('book-art-gallery-box');
+  if (!container) return;
+  if (!currentBookArtImages.length) {
+    container.innerHTML = '<span style="font-size:0.85rem; color:var(--color-ink-light); font-style:italic;">No character art images uploaded yet.</span>';
+    return;
+  }
+  container.innerHTML = currentBookArtImages.map((imgUrl, idx) => `
+    <div style="position:relative; width:80px; height:80px; border-radius:6px; overflow:hidden; border:1px solid rgba(139,115,85,0.3); background:#fff;">
+      <img src="${escapeHtml(imgUrl)}" style="width:100%; height:100%; object-fit:cover;" alt="Character Art Thumbnail ${idx+1}" />
+      <button type="button" onclick="window.removeCharacterArtImage(${idx})" style="position:absolute; top:2px; right:2px; background:rgba(0,0,0,0.6); color:#fff; border:none; border-radius:50%; width:20px; height:20px; font-size:11px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
+    </div>
+  `).join('');
+}
+
+window.removeCharacterArtImage = function(idx) {
+  currentBookArtImages.splice(idx, 1);
+  const input = document.getElementById('book-art-image');
+  if (input) input.value = currentBookArtImages.join(', ');
+  renderCharacterArtGalleryPreview();
+};
+
+function updateCoverPreview(url) {
+  const container = document.getElementById('book-cover-preview-box');
+  const img = document.getElementById('book-cover-preview-img');
+  if (container && img) {
+    if (url && url.trim()) {
+      img.src = url.trim();
+      container.style.display = 'block';
+    } else {
+      img.src = '';
+      container.style.display = 'none';
+    }
+  }
+}
+
+async function uploadMediaFile(file) {
+  const formData = new FormData();
+  formData.append('media', file);
+  const res = await apiFetch('/api/v1/admin/uploads', {
+    method: 'POST',
+    body: formData
+  });
+  const data = await res.json();
+  if (data && data.url) {
+    return data.url;
+  }
+  throw new Error("Upload response missing URL");
+}
 
 function renderAdminBooksTab() {
   const container = document.getElementById('admin-books');
   const booksConfig = window.authorData.bookshelfConfig || {};
   const books = window.authorData.booksData || [];
 
-  const listHTML = books.map(book => `
-    <div class="admin-item-row">
-      <div class="admin-item-left">
-        ${book.coverImage ? 
-          `<img src="${escapeHtml(book.coverImage)}" class="admin-item-thumb" alt="${escapeHtml(book.title)}" />` :
-          `<div style="width: 40px; height: 52px; background-color: ${book.coverColor || '#aa7f66'}; border-radius: 3px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.1rem; margin-right: 0.8rem; border:1px solid rgba(0,0,0,0.2);">📖</div>`
-        }
-        <div class="admin-item-title-col">
-          <strong>${escapeHtml(book.title)}</strong>
-          <span>${escapeHtml(book.genre || '')} — "${escapeHtml(book.tagline || '')}"</span>
+  const listHTML = books.map(book => {
+    const targetId = book.dbId || book.id;
+    return `
+      <div class="admin-item-row">
+        <div class="admin-item-left">
+          ${book.coverImage ? 
+            `<img src="${escapeHtml(book.coverImage)}" class="admin-item-thumb" alt="${escapeHtml(book.title)}" />` :
+            `<div style="width: 40px; height: 52px; background-color: ${book.coverColor || '#aa7f66'}; border-radius: 3px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.1rem; margin-right: 0.8rem; border:1px solid rgba(0,0,0,0.2);">📖</div>`
+          }
+          <div class="admin-item-title-col">
+            <strong>${escapeHtml(book.title)}</strong>
+            <span>${escapeHtml(book.genre || '')} — "${escapeHtml(book.tagline || '')}"</span>
+          </div>
+        </div>
+        <div class="admin-item-actions">
+          <button type="button" class="admin-action-btn-sm" onclick="openBookModal('${escapeHtml(book.id)}')">👁️ Preview Modal</button>
+          <button type="button" class="admin-action-btn-sm" onclick="window.editAdminBook('${escapeHtml(targetId)}')">Edit</button>
+          <button type="button" class="admin-action-btn-sm danger" onclick="window.deleteAdminBook('${escapeHtml(targetId)}')">Delete</button>
         </div>
       </div>
-      <div class="admin-item-actions">
-        <button type="button" class="admin-action-btn-sm" onclick="openBookModal('${escapeHtml(book.id)}')">👁️ Preview Modal</button>
-        <button type="button" class="admin-action-btn-sm" onclick="window.editAdminBook('${escapeHtml(book.id)}')">Edit</button>
-        <button type="button" class="admin-action-btn-sm danger" onclick="window.deleteAdminBook('${escapeHtml(book.id)}')">Delete</button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 
   container.innerHTML = `
     <!-- Header configuration -->
@@ -1015,9 +1110,19 @@ function renderAdminBooksTab() {
         </div>
 
         <div class="admin-form-group">
-          <label for="book-cover-image">Custom Cover Image URL or File Path (Optional)</label>
-          <input type="text" id="book-cover-image" class="admin-form-input" placeholder="e.g. assets/our-hundred-days.jpg" />
-          <span class="admin-form-hint">Leave blank to use the cozy 3D leather spine + gold foil icon cover!</span>
+          <label for="book-cover-image">Book Cover Image</label>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <input type="text" id="book-cover-image" class="admin-form-input" placeholder="e.g. assets/our-hundred-days.jpg" style="flex:1;" />
+            <label class="admin-btn admin-btn-secondary" style="cursor:pointer; white-space:nowrap; margin:0;">
+              📁 Upload Image
+              <input type="file" id="book-cover-file-input" accept="image/*" style="display:none;" />
+            </label>
+            <button type="button" class="admin-btn admin-btn-secondary danger" id="book-cover-remove-btn" style="white-space:nowrap;">Remove</button>
+          </div>
+          <div id="book-cover-preview-box" style="margin-top:0.6rem; display:none;">
+            <img id="book-cover-preview-img" src="" alt="Cover Preview" style="max-height: 120px; border-radius: 4px; border: 1px solid rgba(139,115,85,0.3);" />
+          </div>
+          <span class="admin-form-hint">Select an image from your computer to upload, or enter a URL. Leave blank for default 3D cover.</span>
         </div>
 
         <div class="admin-form-grid-2">
@@ -1026,18 +1131,25 @@ function renderAdminBooksTab() {
             <input type="url" id="book-pinterest" class="admin-form-input" placeholder="https://pinterest.com/..." />
           </div>
           <div class="admin-form-group">
-            <label for="book-art-placeholder">Character Art Studio Section Title / Note</label>
+            <label for="book-art-placeholder">Character Art Studio Section Title</label>
             <input type="text" id="book-art-placeholder" class="admin-form-input" placeholder="e.g. Character Art Studio" />
           </div>
         </div>
 
         <div class="admin-form-grid-2">
-          <div class="admin-form-group">
-            <label for="book-art-image">Character Art Image URL or Path (Optional)</label>
-            <input type="text" id="book-art-image" class="admin-form-input" placeholder="e.g. assets/character-art.jpg or uploads/..." />
-            <span class="admin-form-hint">If an image is set here, the "Character Art Studio" section will render on the website. If empty, the section stays hidden!</span>
+          <div class="admin-form-group" style="grid-column: span 2;">
+            <label for="book-art-image">Character Art Studio Images</label>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="text" id="book-art-image" class="admin-form-input" placeholder="e.g. uploads/char1.png, uploads/char2.png" style="flex:1;" />
+              <label class="admin-btn admin-btn-secondary" style="cursor:pointer; white-space:nowrap; margin:0;">
+                🖼️ Upload Character Art
+                <input type="file" id="book-art-files-input" accept="image/*" multiple style="display:none;" />
+              </label>
+            </div>
+            <div id="book-art-gallery-box" style="margin-top:0.6rem; display:flex; flex-wrap:wrap; gap:0.6rem;"></div>
+            <span class="admin-form-hint">Upload one or multiple character art images using the file picker.</span>
           </div>
-          <div class="admin-form-group">
+          <div class="admin-form-group" style="grid-column: span 2;">
             <label for="book-art-caption">Character Art Caption / Description</label>
             <input type="text" id="book-art-caption" class="admin-form-input" placeholder="e.g. Original artwork sketch by D. Ackerman" />
           </div>
@@ -1108,6 +1220,71 @@ function renderAdminBooksTab() {
     colorText.addEventListener('input', () => { picker.value = colorText.value; });
   }
 
+  // Cover Image File Picker & Handlers
+  const coverImageInput = document.getElementById('book-cover-image');
+  const coverFileInput = document.getElementById('book-cover-file-input');
+  const coverRemoveBtn = document.getElementById('book-cover-remove-btn');
+
+  if (coverImageInput) {
+    coverImageInput.addEventListener('input', () => {
+      updateCoverPreview(coverImageInput.value);
+    });
+  }
+
+  if (coverFileInput) {
+    coverFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      showAdminToast("Uploading cover image... ⏳");
+      try {
+        const url = await uploadMediaFile(file);
+        if (coverImageInput) coverImageInput.value = url;
+        updateCoverPreview(url);
+        showAdminToast("Cover image uploaded! ✨");
+      } catch (err) {
+        showAdminToast("Cover upload failed: " + err.message, "❌");
+      }
+    });
+  }
+
+  if (coverRemoveBtn) {
+    coverRemoveBtn.addEventListener('click', () => {
+      if (coverImageInput) coverImageInput.value = '';
+      updateCoverPreview('');
+    });
+  }
+
+  // Character Art Files Picker & Handlers
+  const artImageInput = document.getElementById('book-art-image');
+  const artFilesInput = document.getElementById('book-art-files-input');
+
+  if (artImageInput) {
+    artImageInput.addEventListener('input', () => {
+      const val = artImageInput.value.trim();
+      currentBookArtImages = val ? val.split(',').map(s => s.trim()).filter(Boolean) : [];
+      renderCharacterArtGalleryPreview();
+    });
+  }
+
+  if (artFilesInput) {
+    artFilesInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+      showAdminToast(`Uploading ${files.length} character art image(s)... ⏳`);
+      try {
+        for (const file of files) {
+          const url = await uploadMediaFile(file);
+          currentBookArtImages.push(url);
+        }
+        if (artImageInput) artImageInput.value = currentBookArtImages.join(', ');
+        renderCharacterArtGalleryPreview();
+        showAdminToast("Character art uploaded! ✨");
+      } catch (err) {
+        showAdminToast("Character art upload failed: " + err.message, "❌");
+      }
+    });
+  }
+
   document.getElementById('bookshelf-header-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const pageTitle = document.getElementById('bookshelf-title').value.trim();
@@ -1164,37 +1341,52 @@ function openBookEditor(bookId = null) {
   document.getElementById('playlist-subform-list').innerHTML = '';
   document.getElementById('links-subform-list').innerHTML = '';
 
-  if (bookId) {
-    title.textContent = "Edit Book Record";
-    const book = window.authorData.booksData.find(b => b.id === bookId);
-    if (book) {
-      document.getElementById('book-title').value = book.title || '';
-      document.getElementById('book-genre').value = book.genre || '';
-      document.getElementById('book-tagline').value = book.tagline || '';
-      document.getElementById('book-synopsis').value = book.synopsis || '';
-      document.getElementById('book-tropes').value = (book.tropes || []).join(', ');
-      document.getElementById('book-cover-color').value = book.coverColor || '#aa7f66';
-      document.getElementById('book-color-picker').value = book.coverColor || '#aa7f66';
-      document.getElementById('book-cover-doodle').value = book.coverDoodle || 'quill';
-      document.getElementById('book-cover-image').value = book.coverImage || '';
-      document.getElementById('book-pinterest').value = book.pinterestMoodboard || '';
-      document.getElementById('book-art-placeholder').value = book.characterArtPlaceholder || '';
-      document.getElementById('book-art-image').value = book.characterArtImage || '';
-      document.getElementById('book-art-caption').value = book.characterArtCaption || '';
-      document.getElementById('book-notes').value = book.authorNotes || '';
+  const book = bookId ? (window.authorData.booksData || []).find(b => (b.dbId === bookId || b.id === bookId || b.slug === bookId)) : null;
 
-      if (book.characters) {
-        book.characters.forEach(char => addCharacterRow(char.name, char.role, char.desc));
+  if (book) {
+    title.textContent = "Edit Book Record";
+    document.getElementById('book-title').value = book.title || '';
+    document.getElementById('book-genre').value = book.genre || '';
+    document.getElementById('book-tagline').value = book.tagline || '';
+    document.getElementById('book-synopsis').value = book.synopsis || '';
+    document.getElementById('book-tropes').value = (book.tropes || []).join(', ');
+    document.getElementById('book-cover-color').value = book.coverColor || '#aa7f66';
+    document.getElementById('book-color-picker').value = book.coverColor || '#aa7f66';
+    document.getElementById('book-cover-doodle').value = book.coverDoodle || 'quill';
+    document.getElementById('book-cover-image').value = book.coverImage || '';
+    updateCoverPreview(book.coverImage || '');
+    document.getElementById('book-pinterest').value = book.pinterestMoodboard || '';
+    document.getElementById('book-art-placeholder').value = book.characterArtPlaceholder || '';
+    document.getElementById('book-art-image').value = book.characterArtImage || '';
+
+    currentBookArtImages = [];
+    if (book.characterArtImage && book.characterArtImage.trim()) {
+      if (book.characterArtImage.trim().startsWith('[')) {
+        try { currentBookArtImages = JSON.parse(book.characterArtImage.trim()); } catch(e) { currentBookArtImages = []; }
       }
-      if (book.playlist) {
-        book.playlist.forEach(track => addTrackRow(track.title, track.artist));
+      if (!currentBookArtImages.length) {
+        currentBookArtImages = book.characterArtImage.split(',').map(s => s.trim()).filter(Boolean);
       }
-      if (book.purchaseLinks) {
-        book.purchaseLinks.forEach(link => addPurchaseLinkRow(link.store, link.url, link.disabled));
-      }
+    }
+    renderCharacterArtGalleryPreview();
+
+    document.getElementById('book-art-caption').value = book.characterArtCaption || '';
+    document.getElementById('book-notes').value = book.authorNotes || '';
+
+    if (book.characters) {
+      book.characters.forEach(char => addCharacterRow(char.name, char.role, char.desc));
+    }
+    if (book.playlist) {
+      book.playlist.forEach(track => addTrackRow(track.title, track.artist));
+    }
+    if (book.purchaseLinks) {
+      book.purchaseLinks.forEach(link => addPurchaseLinkRow(link.store, link.url, link.disabled));
     }
   } else {
     title.textContent = "Write New Book Record";
+    currentBookArtImages = [];
+    updateCoverPreview('');
+    renderCharacterArtGalleryPreview();
     addCharacterRow("Main Character", "Protagonist", "A dreamer seeking magic...");
     addTrackRow("Main Theme", "Acoustic Melody");
     addPurchaseLinkRow("Bookshop.org", "https://bookshop.org", false);
@@ -1280,63 +1472,71 @@ function addPurchaseLinkRow(store = '', url = '', disabled = false) {
 }
 
 async function saveBookForm() {
-  const title = document.getElementById('book-title').value.trim();
-  const existingBook = editingBookId ? window.authorData.booksData.find(b => b.id === editingBookId) : null;
-  const slug = existingBook ? existingBook.slug : title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const genre = document.getElementById('book-genre').value.trim();
-  const tagline = document.getElementById('book-tagline').value.trim();
-  const synopsis = document.getElementById('book-synopsis').value.trim();
-  const coverColor = document.getElementById('book-cover-color').value.trim() || '#aa7f66';
-  const coverDoodle = document.getElementById('book-cover-doodle').value;
-  const coverImage = document.getElementById('book-cover-image').value.trim() || null;
-  const pinterestMoodboard = document.getElementById('book-pinterest').value.trim() || null;
-  const characterArtPlaceholder = document.getElementById('book-art-placeholder').value.trim() || null;
-  const characterArtImage = document.getElementById('book-art-image').value.trim() || null;
-  const characterArtCaption = document.getElementById('book-art-caption').value.trim() || null;
-  const authorNotes = document.getElementById('book-notes').value.trim();
-
-  const charRows = document.querySelectorAll('.character-row');
-  const characters = Array.from(charRows).map(row => ({
-    name: row.querySelector('.char-name').value.trim(),
-    role: row.querySelector('.char-role').value.trim(),
-    desc: row.querySelector('.char-desc').value.trim()
-  }));
-
-  const playlistRows = document.querySelectorAll('.playlist-row');
-  const playlist = Array.from(playlistRows).map(row => ({
-    title: row.querySelector('.track-title-input').value.trim(),
-    artist: row.querySelector('.track-artist-input').value.trim()
-  }));
-
-  const linkRows = document.querySelectorAll('.link-row');
-  const purchaseLinks = Array.from(linkRows).map(row => ({
-    store: row.querySelector('.store-name-input').value.trim(),
-    url: row.querySelector('.store-url-input').value.trim(),
-    disabled: row.querySelector('.store-disabled-input').checked
-  }));
-
-  const payload = {
-    slug,
-    title,
-    genre,
-    tagline,
-    synopsis,
-    coverColor,
-    coverDoodle,
-    coverImage,
-    pinterestMoodboard,
-    characterArtPlaceholder,
-    characterArtImage,
-    characterArtCaption,
-    authorNotes,
-    characters,
-    playlist,
-    purchaseLinks
-  };
+  const saveBtn = document.querySelector('#book-editor-form button[type="submit"]');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving Book... ⏳';
+  }
 
   try {
-    const url = editingBookId ? `/api/v1/admin/books/${editingBookId}` : '/api/v1/admin/books';
-    const method = editingBookId ? 'PATCH' : 'POST';
+    const title = document.getElementById('book-title').value.trim();
+    const existingBook = editingBookId ? (window.authorData.booksData || []).find(b => (b.dbId === editingBookId || b.id === editingBookId || b.slug === editingBookId)) : null;
+    const slug = existingBook ? existingBook.slug : title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const genre = document.getElementById('book-genre').value.trim();
+    const tagline = document.getElementById('book-tagline').value.trim();
+    const synopsis = document.getElementById('book-synopsis').value.trim();
+    const coverColor = document.getElementById('book-cover-color').value.trim() || '#aa7f66';
+    const coverDoodle = document.getElementById('book-cover-doodle').value;
+    const coverImage = document.getElementById('book-cover-image').value.trim() || null;
+    const pinterestMoodboard = document.getElementById('book-pinterest').value.trim() || null;
+    const characterArtPlaceholder = document.getElementById('book-art-placeholder').value.trim() || null;
+    const characterArtImage = document.getElementById('book-art-image').value.trim() || null;
+    const characterArtCaption = document.getElementById('book-art-caption').value.trim() || null;
+    const authorNotes = document.getElementById('book-notes').value.trim();
+
+    const charRows = document.querySelectorAll('.character-row');
+    const characters = Array.from(charRows).map(row => ({
+      name: row.querySelector('.char-name').value.trim(),
+      role: row.querySelector('.char-role').value.trim(),
+      desc: row.querySelector('.char-desc').value.trim()
+    }));
+
+    const playlistRows = document.querySelectorAll('.playlist-row');
+    const playlist = Array.from(playlistRows).map(row => ({
+      title: row.querySelector('.track-title-input').value.trim(),
+      artist: row.querySelector('.track-artist-input').value.trim()
+    }));
+
+    const linkRows = document.querySelectorAll('.link-row');
+    const purchaseLinks = Array.from(linkRows).map(row => ({
+      store: row.querySelector('.store-name-input').value.trim(),
+      url: row.querySelector('.store-url-input').value.trim(),
+      disabled: row.querySelector('.store-disabled-input').checked
+    }));
+
+    const payload = {
+      slug,
+      title,
+      genre,
+      tagline,
+      synopsis,
+      coverColor,
+      coverDoodle,
+      coverImage,
+      pinterestMoodboard,
+      characterArtPlaceholder,
+      characterArtImage,
+      characterArtCaption,
+      authorNotes,
+      characters,
+      playlist,
+      purchaseLinks
+    };
+
+    const targetId = existingBook ? (existingBook.dbId || existingBook.id || editingBookId) : null;
+    const url = targetId ? `/api/v1/admin/books/${targetId}` : '/api/v1/admin/books';
+    const method = targetId ? 'PATCH' : 'POST';
+
     await apiFetch(url, { method, body: payload });
     const res = await fetch('/api/v1/site');
     if (res.ok) window.authorData = await res.json();
@@ -1345,17 +1545,26 @@ async function saveBookForm() {
     renderAdminBooksTab();
   } catch (err) {
     showAdminToast("Error saving book: " + err.message, "❌");
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Book Record ✨';
+    }
   }
 }
 
-window.editAdminBook = function (bookId) {
-  openBookEditor(bookId);
+window.editAdminBook = function (bookIdentifier) {
+  const book = (window.authorData.booksData || []).find(b => (b.dbId === bookIdentifier || b.id === bookIdentifier || b.slug === bookIdentifier));
+  const targetId = book ? (book.dbId || book.id) : bookIdentifier;
+  openBookEditor(targetId);
 };
 
-window.deleteAdminBook = async function (bookId) {
+window.deleteAdminBook = async function (bookIdentifier) {
+  const book = (window.authorData.booksData || []).find(b => (b.dbId === bookIdentifier || b.id === bookIdentifier || b.slug === bookIdentifier));
+  const targetId = book ? (book.dbId || book.id) : bookIdentifier;
   if (confirm("Are you sure you want to delete this book record?")) {
     try {
-      await apiFetch(`/api/v1/admin/books/${bookId}`, { method: 'DELETE' });
+      await apiFetch(`/api/v1/admin/books/${targetId}`, { method: 'DELETE' });
       const res = await fetch('/api/v1/site');
       if (res.ok) window.authorData = await res.json();
       showAdminToast("Book deleted from Database.");
@@ -1372,7 +1581,6 @@ window.deleteAdminBook = async function (bookId) {
 let editingUpdateIdx = null;
 let editingSnippetIdx = null;
 let editingProjectIdx = null;
-let editingSneakIdx = null;
 
 function renderAdminDeskTab() {
   const container = document.getElementById('admin-desk');
@@ -1393,6 +1601,19 @@ function renderAdminDeskTab() {
     </div>
   `).join('');
 
+  const snippetsHTML = (desk.snippets || []).map((snip, idx) => `
+    <div class="admin-item-row">
+      <div class="admin-item-title-col">
+        <strong>${escapeHtml(snip.source)}</strong>
+        <span>${escapeHtml(snip.text.substring(0, 80))}... ${snip.externalUrl ? '🔗' : ''}</span>
+      </div>
+      <div class="admin-item-actions">
+        <button class="admin-action-btn-sm" onclick="window.editAdminSnippet(${idx})">Edit</button>
+        <button class="admin-action-btn-sm danger" onclick="window.deleteAdminSnippet(${idx})">Delete</button>
+      </div>
+    </div>
+  `).join('');
+
   const updatesHTML = (desk.updates || []).map((upd, idx) => `
     <div class="admin-item-row">
       <div class="admin-item-title-col">
@@ -1402,32 +1623,6 @@ function renderAdminDeskTab() {
       <div class="admin-item-actions">
         <button class="admin-action-btn-sm" onclick="window.editAdminUpdate(${idx})">Edit</button>
         <button class="admin-action-btn-sm danger" onclick="window.deleteAdminUpdate(${idx})">Delete</button>
-      </div>
-    </div>
-  `).join('');
-
-  const snippetsHTML = (desk.snippets || []).map((snip, idx) => `
-    <div class="admin-item-row">
-      <div class="admin-item-title-col">
-        <strong>${escapeHtml(snip.source)}</strong>
-        <span>${escapeHtml(snip.text.substring(0, 80))}...</span>
-      </div>
-      <div class="admin-item-actions">
-        <button class="admin-action-btn-sm" onclick="window.editAdminSnippet(${idx})">Edit</button>
-        <button class="admin-action-btn-sm danger" onclick="window.deleteAdminSnippet(${idx})">Delete</button>
-      </div>
-    </div>
-  `).join('');
-
-  const sneakHTML = (desk.sneakPeeks || []).map((sp, idx) => `
-    <div class="admin-item-row">
-      <div class="admin-item-title-col">
-        <strong>${escapeHtml(sp.title)}</strong>
-        <span>${escapeHtml(sp.desc)}</span>
-      </div>
-      <div class="admin-item-actions">
-        <button class="admin-action-btn-sm" onclick="window.editAdminSneak(${idx})">Edit</button>
-        <button class="admin-action-btn-sm danger" onclick="window.deleteAdminSneak(${idx})">Delete</button>
       </div>
     </div>
   `).join('');
@@ -1508,7 +1703,39 @@ function renderAdminDeskTab() {
       </button>
     </div>
 
-    <!-- Timeline Log Updates -->
+    <!-- Manuscript Snippets -->
+    <div class="admin-editor-card" id="snippet-editor-card" style="display: none; margin-top: 2rem;">
+      <h3 id="snippet-editor-title">Add Snippet / Scene</h3>
+      <form id="snippet-editor-form">
+        <div class="admin-form-group">
+          <label for="snip-source">Source Book/Scene Title</label>
+          <input type="text" id="snip-source" class="admin-form-input" placeholder="e.g. Kindred, Chapter 4 or Deleted Scene: Our Hundred Days" required />
+        </div>
+        <div class="admin-form-group">
+          <label for="snip-text">Excerpt Text</label>
+          <textarea id="snip-text" class="admin-form-textarea" style="min-height: 140px;" required></textarea>
+        </div>
+        <div class="admin-form-group">
+          <label for="snip-external-url">External Reading Link (Optional, e.g. Substack URL)</label>
+          <input type="url" id="snip-external-url" class="admin-form-input" placeholder="https://substack.com/..." />
+          <span class="admin-form-hint">If provided, a "Continue Reading →" button will appear inside the snippet reading modal.</span>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="admin-btn admin-btn-primary">Save Excerpt</button>
+          <button type="button" class="admin-btn admin-btn-secondary" onclick="window.closeSnippetEditor()">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="admin-items-list" id="snippet-list-container" style="margin-top: 2rem;">
+      <h3>Manuscript Snippets & Typewriter Scraps</h3>
+      ${snippetsHTML ? snippetsHTML : '<p style="color: var(--color-ink-light); font-style: italic;">No excerpts posted yet.</p>'}
+      <button class="admin-btn admin-btn-primary" onclick="window.openSnippetEditor()" style="margin-top: 1.5rem; align-self: flex-start;">
+        + Pin New Excerpt
+      </button>
+    </div>
+
+    <!-- Timeline Log Updates (Repositioned to vacated section) -->
     <div class="admin-editor-card" id="update-editor-card" style="display: none; margin-top: 2rem;">
       <h3 id="update-editor-title">Add Desk Log</h3>
       <form id="update-editor-form">
@@ -1532,60 +1759,6 @@ function renderAdminDeskTab() {
       ${updatesHTML ? updatesHTML : '<p style="color: var(--color-ink-light); font-style: italic;">No logs posted yet.</p>'}
       <button class="admin-btn admin-btn-primary" onclick="window.openUpdateEditor()" style="margin-top: 1.5rem; align-self: flex-start;">
         + Post New Log Entry
-      </button>
-    </div>
-
-    <!-- Manuscript Snippets -->
-    <div class="admin-editor-card" id="snippet-editor-card" style="display: none; margin-top: 2rem;">
-      <h3 id="snippet-editor-title">Add Snippet / Scene</h3>
-      <form id="snippet-editor-form">
-        <div class="admin-form-group">
-          <label for="snip-source">Source Book/Scene</label>
-          <input type="text" id="snip-source" class="admin-form-input" placeholder="e.g. Kindred, Chapter 4 or Deleted Scene: Our Hundred Days" required />
-        </div>
-        <div class="admin-form-group">
-          <label for="snip-text">Excerpt Text</label>
-          <textarea id="snip-text" class="admin-form-textarea" style="min-height: 140px;" required></textarea>
-        </div>
-        <div class="admin-form-actions">
-          <button type="submit" class="admin-btn admin-btn-primary">Save Excerpt</button>
-          <button type="button" class="admin-btn admin-btn-secondary" onclick="window.closeSnippetEditor()">Cancel</button>
-        </div>
-      </form>
-    </div>
-
-    <div class="admin-items-list" id="snippet-list-container" style="margin-top: 2rem;">
-      <h3>Manuscript Snippets & Typewriter Scraps</h3>
-      ${snippetsHTML ? snippetsHTML : '<p style="color: var(--color-ink-light); font-style: italic;">No excerpts posted yet.</p>'}
-      <button class="admin-btn admin-btn-primary" onclick="window.openSnippetEditor()" style="margin-top: 1.5rem; align-self: flex-start;">
-        + Pin New Excerpt
-      </button>
-    </div>
-
-    <!-- Sneak Peeks & Extras -->
-    <div class="admin-editor-card" id="sneak-editor-card" style="display: none; margin-top: 2rem;">
-      <h3 id="sneak-editor-title">Add Sneak Peek / Extra</h3>
-      <form id="sneak-editor-form">
-        <div class="admin-form-group">
-          <label for="sneak-title">Extra Title</label>
-          <input type="text" id="sneak-title" class="admin-form-input" placeholder="e.g. Map of Aveline's Whispering Forest" required />
-        </div>
-        <div class="admin-form-group">
-          <label for="sneak-desc">Description</label>
-          <textarea id="sneak-desc" class="admin-form-textarea" placeholder="e.g. A sneak peek at the hand-inked cartography..." required></textarea>
-        </div>
-        <div class="admin-form-actions">
-          <button type="submit" class="admin-btn admin-btn-primary">Save Sneak Peek</button>
-          <button type="button" class="admin-btn admin-btn-secondary" onclick="window.closeSneakEditor()">Cancel</button>
-        </div>
-      </form>
-    </div>
-
-    <div class="admin-items-list" id="sneak-list-container" style="margin-top: 2rem;">
-      <h3>Sneak Peeks & Extras</h3>
-      ${sneakHTML ? sneakHTML : '<p style="color: var(--color-ink-light); font-style: italic;">No sneak peeks added.</p>'}
-      <button class="admin-btn admin-btn-primary" onclick="window.openSneakEditor()" style="margin-top: 1.5rem; align-self: flex-start;">
-        + Add Sneak Peek
       </button>
     </div>
   `;
@@ -1651,26 +1824,6 @@ function renderAdminDeskTab() {
   document.getElementById('snippet-editor-form').addEventListener('submit', (e) => {
     e.preventDefault();
     saveSnippetForm();
-  });
-
-  document.getElementById('sneak-editor-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const title = document.getElementById('sneak-title').value.trim();
-    const desc = document.getElementById('sneak-desc').value.trim();
-    const sp = (editingSneakIdx !== null) ? window.authorData.deskData.sneakPeeks[editingSneakIdx] : null;
-
-    try {
-      const url = (sp && sp.id) ? `/api/v1/admin/sneak-peeks/${sp.id}` : '/api/v1/admin/sneak-peeks';
-      const method = (sp && sp.id) ? 'PATCH' : 'POST';
-      await apiFetch(url, { method, body: { title, desc } });
-      const res = await fetch('/api/v1/site');
-      if (res.ok) window.authorData = await res.json();
-      showAdminToast("Sneak Peek saved to Database! ✨");
-      window.closeSneakEditor();
-      renderAdminDeskTab();
-    } catch (err) {
-      showAdminToast("Error saving sneak peek: " + err.message, "❌");
-    }
   });
 }
 
@@ -1820,6 +1973,7 @@ window.openSnippetEditor = function (idx = null) {
     const entry = window.authorData.deskData.snippets[idx];
     document.getElementById('snip-source').value = entry.source || '';
     document.getElementById('snip-text').value = entry.text || '';
+    document.getElementById('snip-external-url').value = entry.externalUrl || '';
   } else {
     title.textContent = "Pin New Excerpt";
   }
@@ -1842,12 +1996,13 @@ window.closeSnippetEditor = function () {
 async function saveSnippetForm() {
   const source = document.getElementById('snip-source').value.trim();
   const text = document.getElementById('snip-text').value.trim();
+  const externalUrl = document.getElementById('snip-external-url').value.trim() || null;
   const snip = (editingSnippetIdx !== null) ? window.authorData.deskData.snippets[editingSnippetIdx] : null;
 
   try {
     const url = (snip && snip.id) ? `/api/v1/admin/snippets/${snip.id}` : '/api/v1/admin/snippets';
     const method = (snip && snip.id) ? 'PATCH' : 'POST';
-    await apiFetch(url, { method, body: { source, text } });
+    await apiFetch(url, { method, body: { source, text, externalUrl } });
     const res = await fetch('/api/v1/site');
     if (res.ok) window.authorData = await res.json();
     showAdminToast("Manuscript snippet saved to Database! ✨");

@@ -272,6 +272,13 @@ async function createBook(req, res, next) {
 async function updateBook(req, res, next) {
   try {
     const { id } = req.params;
+    const existingBook = await prisma.book.findFirst({
+      where: { OR: [{ id }, { slug: id }] }
+    });
+    if (!existingBook) return res.status(404).json({ success: false, message: 'Book not found.' });
+
+    const targetDbId = existingBook.id;
+
     const parse = bookSchema.safeParse(req.body);
     if (!parse.success) return res.status(400).json({ success: false, errors: parse.error.errors });
 
@@ -280,18 +287,18 @@ async function updateBook(req, res, next) {
 
     // Check slug collision with other books
     const slugCheck = await prisma.book.findFirst({
-      where: { slug: bookFields.slug, NOT: { id } }
+      where: { slug: bookFields.slug, NOT: { id: targetDbId } }
     });
     if (slugCheck) return res.status(400).json({ success: false, message: 'Slug belongs to another book.' });
 
     // Use transaction to update book and replace nested relations
     const updatedBook = await prisma.$transaction(async (tx) => {
-      await tx.bookCharacter.deleteMany({ where: { bookId: id } });
-      await tx.bookPlaylistTrack.deleteMany({ where: { bookId: id } });
-      await tx.bookPurchaseLink.deleteMany({ where: { bookId: id } });
+      await tx.bookCharacter.deleteMany({ where: { bookId: targetDbId } });
+      await tx.bookPlaylistTrack.deleteMany({ where: { bookId: targetDbId } });
+      await tx.bookPurchaseLink.deleteMany({ where: { bookId: targetDbId } });
 
       return await tx.book.update({
-        where: { id },
+        where: { id: targetDbId },
         data: {
           ...bookFields,
           characters: { create: characters.map((c, i) => ({ ...c, displayOrder: i })) },
@@ -302,7 +309,7 @@ async function updateBook(req, res, next) {
       });
     });
 
-    await logAudit(req.user.id, 'UPDATE_BOOK', 'Book', id, { title: updatedBook.title });
+    await logAudit(req.user.id, 'UPDATE_BOOK', 'Book', targetDbId, { title: updatedBook.title });
     res.status(200).json({ success: true, data: updatedBook });
   } catch (err) { next(err); }
 }
@@ -310,8 +317,13 @@ async function updateBook(req, res, next) {
 async function deleteBook(req, res, next) {
   try {
     const { id } = req.params;
-    await prisma.book.delete({ where: { id } });
-    await logAudit(req.user.id, 'DELETE_BOOK', 'Book', id);
+    const existingBook = await prisma.book.findFirst({
+      where: { OR: [{ id }, { slug: id }] }
+    });
+    if (!existingBook) return res.status(404).json({ success: false, message: 'Book not found.' });
+
+    await prisma.book.delete({ where: { id: existingBook.id } });
+    await logAudit(req.user.id, 'DELETE_BOOK', 'Book', existingBook.id);
     res.status(200).json({ success: true, message: 'Book deleted' });
   } catch (err) { next(err); }
 }
@@ -415,10 +427,10 @@ async function deleteDeskLog(req, res, next) {
 
 async function addSnippet(req, res, next) {
   try {
-    const { source, text } = req.body;
+    const { source, text, externalUrl } = req.body;
     if (!source || !text) return res.status(400).json({ success: false, message: 'Source and text required' });
     const count = await prisma.manuscriptSnippet.count();
-    const snip = await prisma.manuscriptSnippet.create({ data: { source, text, displayOrder: count } });
+    const snip = await prisma.manuscriptSnippet.create({ data: { source, text, externalUrl: externalUrl || null, displayOrder: count } });
     await logAudit(req.user.id, 'ADD_SNIPPET', 'ManuscriptSnippet', snip.id);
     res.status(201).json({ success: true, data: snip });
   } catch (err) { next(err); }
@@ -427,9 +439,9 @@ async function addSnippet(req, res, next) {
 async function updateSnippet(req, res, next) {
   try {
     const { id } = req.params;
-    const { source, text } = req.body;
+    const { source, text, externalUrl } = req.body;
     if (!source || !text) return res.status(400).json({ success: false, message: 'Source and text required' });
-    const snip = await prisma.manuscriptSnippet.update({ where: { id }, data: { source, text } });
+    const snip = await prisma.manuscriptSnippet.update({ where: { id }, data: { source, text, externalUrl: externalUrl || null } });
     await logAudit(req.user.id, 'UPDATE_SNIPPET', 'ManuscriptSnippet', id);
     res.status(200).json({ success: true, data: snip });
   } catch (err) { next(err); }
